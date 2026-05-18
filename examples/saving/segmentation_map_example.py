@@ -43,7 +43,7 @@ data = {
     "raw_data": np.random.randn(n_frames, n_tx, n_ax, n_el, 1).astype(np.float32),
     "segmentation": {
         # bool one-hot mask, shape (n_frames, z, x, y, n_labels) — see
-        # https://zea--307.org.readthedocs.build/en/307/data-acquisition.html
+        # https://zea--358.org.readthedocs.build/en/358/data-acquisition.html
         "values": np.eye(len(labels), dtype=bool)[
             np.random.randint(0, len(labels), (n_frames, seg_h, seg_w, 1))
         ],
