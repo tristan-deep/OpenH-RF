@@ -4,6 +4,14 @@ Downloads a Verasonics workspace .mat file from the zeahub/phantoms dataset on
 Hugging Face and converts it to the openh-rf HDF5 format using zea.File.create.
 VerasonicsFile reads all scan parameters directly from the .mat file.
 
+.. note::
+
+    The .mat file must be saved in HDF5 format (MATLAB v7.3 or later).
+    Older .mat files are not HDF5-compatible and cannot be read by this converter.
+    To save in the correct format from MATLAB, use the '-v7.3' flag::
+
+        save('C:/path/to/raw_data.mat', '-v7.3')
+
 Requires:
     pip install huggingface_hub
 
