@@ -103,7 +103,7 @@ metadata = {
     "annotations": {
         "anatomy": "heart",
         "view": np.array(["a4c", "a2c", "plax"] * 4, dtype=np.str_)[:n_frames],
-        "label": np.array(["normal"] * n_frames, dtype=np.str_),
+        "label": "normal",
     },
     "text_report": (
         "Normal LV size and systolic function. "

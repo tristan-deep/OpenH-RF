@@ -13,9 +13,8 @@ Usage:
 from pathlib import Path
 
 import numpy as np
-from zea.beamform.pixelgrid import cartesian_pixel_grid
-
 from zea import File
+from zea.beamform.pixelgrid import cartesian_pixel_grid
 
 OUTPUT = Path(__file__).parent / "segmentation.hdf5"
 
@@ -86,8 +85,8 @@ metadata = {
     "credit": "segmentation convert.py",
     "annotations": {
         "anatomy": "carotid",
-        "view": np.array(["cross-section"] * n_frames, dtype=np.str_),
-        "label": np.array(["normal"] * n_frames, dtype=np.str_),
+        "view": "cross-section",
+        "label": "normal",
     },
 }
 
