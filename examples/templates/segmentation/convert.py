@@ -42,7 +42,7 @@ zlims = (0.0, 30e-3)
 # Data: raw RF + segmentation mask
 # ------------------------------------------------------------------
 # Segmentation labels: integer pixel values map to class names by index
-labels = np.array(["background", "vessel_wall", "lumen"], dtype=np.str_)
+labels = ["background", "vessel_wall", "lumen"]
 segmentation_coordinates = cartesian_pixel_grid(
     xlims=xlims,
     zlims=zlims,

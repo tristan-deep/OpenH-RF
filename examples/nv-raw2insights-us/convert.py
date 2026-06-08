@@ -97,7 +97,7 @@ def convert_sample(sample: dict, output_path: Path) -> None:
         },
         "segmentation": {
             "values": seg_values,
-            "labels": np.array(["background", "inclusion"], dtype=np.str_),
+            "labels": ["background", "inclusion"],
             "extent": bmode_extent,
         },
     }
@@ -122,7 +122,7 @@ def convert_sample(sample: dict, output_path: Path) -> None:
         "credit": "NV-Raw2Insights-US — NVIDIA (CC-BY-4.0)",
         "annotations": {
             "anatomy": "phantom",
-            "label": np.array(["simulation"], dtype=np.str_),
+            "label": "simulation",
         },
     }
 

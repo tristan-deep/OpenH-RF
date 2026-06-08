@@ -13,9 +13,8 @@ Usage:
 from pathlib import Path
 
 import numpy as np
-from zea.beamform.pixelgrid import cartesian_pixel_grid
-
 from zea import File
+from zea.beamform.pixelgrid import cartesian_pixel_grid
 
 OUTPUT = Path(__file__).parent / "echocardiography.hdf5"
 
@@ -102,7 +101,7 @@ metadata = {
     },
     "annotations": {
         "anatomy": "heart",
-        "view": np.array(["a4c", "a2c", "plax"] * 4, dtype=np.str_)[:n_frames],
+        "view": (["a4c", "a2c", "plax"] * 4)[:n_frames],
         "label": "normal",
     },
     "text_report": (
