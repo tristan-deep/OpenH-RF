@@ -141,7 +141,7 @@ def convert_sample(sample: dict, output_path: Path) -> None:
         probe_name="Simulated 10L4 Transducer",
         description="NV-Raw2Insights-US FSA phantom simulation (simulated in k-Wave)",
         overwrite=True,
-    ).close()
+    )
 
 
 def main():

@@ -44,7 +44,7 @@ def main():
 
         # Generate the zea dataset
         log.info("Generating zea dataset...")
-        f = File.create(
+        File.create(
             path=str(args.output),
             data=data_dict,
             scan=scan_dict,
@@ -52,7 +52,6 @@ def main():
             description="Verasonics Vantage 256 - CIRS phantom plane-wave acquisition (from .mat file)",
             overwrite=True,
         )
-        f.close()
 
     print(f"Saved: {args.output}  ({args.output.stat().st_size / 1e6:.1f} MB)")
 
