@@ -54,9 +54,7 @@ data = {
     "raw_data": np.random.randn(n_frames, n_tx, n_ax, n_el, 1).astype(np.float32),
     "image": {
         # Pre-computed B-mode stored alongside raw data as a reference
-        "values": np.random.randint(
-            0, 255, (n_frames, img_h, img_w, 1), dtype=np.uint8
-        ),
+        "values": np.random.randint(0, 255, (n_frames, img_h, img_w, 1), dtype=np.uint8),
         "coordinates": map_coordinates,
     },
     "strain_percentage_map": {

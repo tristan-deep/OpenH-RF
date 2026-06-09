@@ -57,9 +57,7 @@ def main():
     args = parser.parse_args()
 
     if not args.input.exists():
-        raise FileNotFoundError(
-            f"{args.input} not found. Run convert.py first."
-        )
+        raise FileNotFoundError(f"{args.input} not found. Run convert.py first.")
 
     zea.init_device()
 
@@ -142,18 +140,14 @@ def main():
     axes[1].set_ylabel("Depth [mm]")
 
     # 3: Stored DBUA
-    axes[2].imshow(
-        focused[0], aspect="auto", cmap="gray", extent=ext_to_imshow_mm(focused_ext)
-    )
+    axes[2].imshow(focused[0], aspect="auto", cmap="gray", extent=ext_to_imshow_mm(focused_ext))
     axes[2].set_title(f"B-mode (DBUA, stored)\nbmode_focused: {focused.shape}")
     axes[2].set_xlabel("Lateral [mm]")
     axes[2].set_ylabel("Depth [mm]")
 
     # 4: zea-reconstructed B-mode (DAS pipeline on raw_data)
     stored_ext = ext_to_imshow_mm(img_ext)
-    axes[3].imshow(
-        recon, aspect="auto", cmap="gray", vmin=-60, vmax=0, extent=recon_ext
-    )
+    axes[3].imshow(recon, aspect="auto", cmap="gray", vmin=-60, vmax=0, extent=recon_ext)
     axes[3].set_xlim(stored_ext[0], stored_ext[1])
     axes[3].set_ylim(stored_ext[2], stored_ext[3])
     axes[3].set_title(f"B-mode (DAS, zea)\nreconstructed: {recon.shape}")
@@ -161,18 +155,14 @@ def main():
     axes[3].set_ylabel("Depth [mm]")
 
     # 5: SOS map
-    im = axes[4].imshow(
-        sos[0], aspect="auto", cmap="hot", extent=ext_to_imshow_mm(sos_ext)
-    )
+    im = axes[4].imshow(sos[0], aspect="auto", cmap="hot", extent=ext_to_imshow_mm(sos_ext))
     plt.colorbar(im, ax=axes[4], label="m/s")
     axes[4].set_title(f"Speed of sound\nsos_map: {sos.shape}")
     axes[4].set_xlabel("Lateral [mm]")
     axes[4].set_ylabel("Depth [mm]")
 
     # 6: zea-reconstructed B-mode with SoS correction
-    axes[5].imshow(
-        recon_sos, aspect="auto", cmap="gray", vmin=-60, vmax=0, extent=recon_ext
-    )
+    axes[5].imshow(recon_sos, aspect="auto", cmap="gray", vmin=-60, vmax=0, extent=recon_ext)
     axes[5].set_xlim(stored_ext[0], stored_ext[1])
     axes[5].set_ylim(stored_ext[2], stored_ext[3])
     axes[5].set_title(f"B-mode (DAS + SoS, zea)\nreconstructed: {recon_sos.shape}")
@@ -180,9 +170,7 @@ def main():
     axes[5].set_ylabel("Depth [mm]")
 
     # 7: Segmentation overlaid on focused (DBUA) B-mode
-    axes[6].imshow(
-        focused[0], aspect="auto", cmap="gray", extent=ext_to_imshow_mm(focused_ext)
-    )
+    axes[6].imshow(focused[0], aspect="auto", cmap="gray", extent=ext_to_imshow_mm(focused_ext))
     axes[6].imshow(
         seg[0, :, :, 0, 1],
         aspect="auto",
@@ -194,9 +182,7 @@ def main():
     axes[6].set_xlabel("Lateral [mm]")
     axes[6].set_ylabel("Depth [mm]")
 
-    fig.suptitle(
-        f"openh-rf sample (phase error: {phase_err[0]:.2f} rad)", fontsize=14, y=1.02
-    )
+    fig.suptitle(f"openh-rf sample (phase error: {phase_err[0]:.2f} rad)", fontsize=14, y=1.02)
     plt.tight_layout()
     plt.savefig(args.output, dpi=150, bbox_inches="tight")
     print(f"Saved {args.output}")
