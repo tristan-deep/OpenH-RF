@@ -51,11 +51,12 @@ The OpenH-RF format is implemented using the [`zea`](https://github.com/tue-bmd/
 
 | Example | Modality |
 |---------|----------|
-| [`examples/saving/echocardiography_example.py`](examples/saving/echocardiography_example.py) | Cardiac ultrasound with strain map, ECG, demographics, annotations, quality metrics |
-| [`examples/saving/color_doppler_example.py`](examples/saving/color_doppler_example.py) | B-mode + color Doppler velocity map, ECG, annotations |
-| [`examples/saving/segmentation_map_example.py`](examples/saving/segmentation_map_example.py) | Raw RF data with per-frame segmentation masks and view labels |
-| [`examples/saving/verasonics_example.py`](examples/saving/verasonics_example.py) | Converting a Verasonics `.mat` workspace to OpenH-RF |
-| [`examples/nv-raw2insights-us/`](examples/nv-raw2insights-us/) | Streaming a sample from the public [NV-Raw2Insights-US](https://huggingface.co/datasets/nvidia/NV-Raw2Insights-US) dataset, converting to OpenH-RF, and beamforming back to a B-mode |
+| [`echocardiography template`](examples/templates/echocardiography/convert.py) | Cardiac ultrasound with strain map, ECG, demographics, annotations, quality metrics |
+| [`color_doppler template`](examples/templates/color_doppler/convert.py) | B-mode + color Doppler velocity map, ECG, annotations |
+| [`segmentation_map template`](examples/templates/segmentation_map/convert.py) | Raw RF data with per-frame segmentation masks and view labels |
+| [`verasonics template`](examples/templates/verasonics/convert.py) | Converting a Verasonics `.mat` workspace to OpenH-RF |
+| [`nv-raw2insights-us/`](examples/nv-raw2insights-us/) | Streaming a sample from the public [NV-Raw2Insights-US](https://huggingface.co/datasets/nvidia/NV-Raw2Insights-US) dataset, converting to OpenH-RF, and beamforming back to a B-mode |
+| [`pala/`](examples/pala/) | Converting [PALA](https://zenodo.org/records/7883227) rat-brain plane-wave channel data from Zenodo to OpenH-RF format and beamforming to a B-mode |
 | [`examples/save_pipeline_example.py`](examples/save_pipeline_example.py) | Saving a `zea` processing pipeline as a reusable YAML config |
 
 ## Setup
