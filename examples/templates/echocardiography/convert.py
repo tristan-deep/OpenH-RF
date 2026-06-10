@@ -93,7 +93,7 @@ metadata = {
         "fat_percentage": 22.0,
     },
     "ecg": {
-        "samples": np.random.randint(50, 200, (500,), dtype=np.uint8),
+        "samples": np.zeros((500,), dtype=np.float32),
         "start_time_offset": np.float32(0.0),
         "sampling_frequency": np.float32(500.0),
     },
