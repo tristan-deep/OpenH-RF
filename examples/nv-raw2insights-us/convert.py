@@ -123,7 +123,7 @@ def convert_sample(sample: dict, output_path: Path) -> None:
         },
         "segmentation": {
             "values": seg_values,
-            "labels": np.array(["background", "inclusion"], dtype=np.str_),
+            "labels": ["background", "inclusion"],
             "coordinates": bmode_coords,
         },
     }
@@ -147,7 +147,7 @@ def convert_sample(sample: dict, output_path: Path) -> None:
         "credit": "NV-Raw2Insights-US — NVIDIA (CC-BY-4.0)",
         "annotations": {
             "anatomy": "phantom",
-            "label": np.array(["simulation"], dtype=np.str_),
+            "label": "simulation",
         },
     }
 
@@ -168,7 +168,7 @@ def convert_sample(sample: dict, output_path: Path) -> None:
         probe={"name": "Simulated 10L4 Transducer", "probe_geometry": probe_geometry},
         description="NV-Raw2Insights-US FSA phantom simulation (simulated in k-Wave)",
         overwrite=True,
-    ).close()
+    )
 
 
 def main():
