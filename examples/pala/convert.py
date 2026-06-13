@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Convert: convert channel data from the PALA rat-brain dataset.
 
-The data is available at https://zenodo.org/records/7883227
+The data is available at https://doi.org/10.5281/zenodo.7883226
 
 Usage:
     python examples/pala/convert.py --download
