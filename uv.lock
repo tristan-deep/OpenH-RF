@@ -2890,7 +2890,7 @@ requires-dist = [
     { name = "tensorflow", marker = "extra == 'tf'" },
     { name = "tensorflow", extras = ["and-cuda"], marker = "extra == 'tf-gpu'" },
     { name = "torch", marker = "extra == 'torch'" },
-    { name = "zea", specifier = "==0.1.0a3" },
+    { name = "zea", git = "https://github.com/tue-bmd/zea.git?rev=openh-rf-latest" },
 ]
 provides-extras = ["test", "gpu", "torch", "tf", "tf-gpu"]
 
@@ -5066,8 +5066,8 @@ wheels = [
 
 [[package]]
 name = "zea"
-version = "0.1.0a3"
-source = { registry = "https://pypi.org/simple" }
+version = "0.1.0a4"
+source = { git = "https://github.com/tue-bmd/zea.git?rev=openh-rf-latest#dd0375bcf2cd3f438f45802f24627d288e0b1c2d" }
 dependencies = [
     { name = "decorator" },
     { name = "grain", version = "0.2.13", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
@@ -5093,10 +5093,6 @@ dependencies = [
     { name = "tyro" },
     { name = "wandb" },
     { name = "wget" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f9/ef/6bfcbba19053b74d80fb321ee8e07e0db20610c8cee53144f2249d5b5397/zea-0.1.0a3.tar.gz", hash = "sha256:65a2d3f2bba845d292f0cb7a0efaccc41c81e1ce6f4ac076b84f0664885fd419", size = 35564622, upload-time = "2026-06-12T15:34:59.256Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/17/ed845e73c3a2ee0aba657e79fea44e451d375c53c551bc1ffa9ecbcd11ce/zea-0.1.0a3-py3-none-any.whl", hash = "sha256:2c3d11e518d124027b9e691d2780153428923c124a56314328ce9fb999f48fa3", size = 542187, upload-time = "2026-06-12T15:34:57.302Z" },
 ]
 
 [[package]]

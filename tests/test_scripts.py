@@ -19,6 +19,7 @@ LIGHT_SCRIPTS = [
 ]
 HEAVY_SCRIPTS = [
     ROOT / "examples" / "nv-raw2insights-us" / "convert.py",
+    ROOT / "examples" / "tracked_dataset" / "convert.py",
 ]
 
 # Template directories whose convert.py + reconstruct.py must run in sequence.
@@ -31,6 +32,9 @@ LIGHT_TEMPLATE_DIRS = [
 ]
 HEAVY_TEMPLATE_DIRS = [
     ROOT / "examples" / "templates" / "verasonics",
+    # Not under templates/, but same convert.py + reconstruct.py shape; heavy
+    # because convert.py streams the source dataset from Hugging Face.
+    ROOT / "examples" / "tracked_dataset",
 ]
 
 
