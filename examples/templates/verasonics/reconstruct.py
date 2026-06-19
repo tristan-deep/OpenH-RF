@@ -5,8 +5,8 @@ raw RF data, and runs a delay-and-sum beamforming pipeline configured in
 pipeline.yaml. The resulting B-mode image is saved as a PNG file.
 
 Usage:
-    python examples/saving/verasonics/reconstruct.py
-    python examples/saving/verasonics/reconstruct.py --input my_file.hdf5
+    python examples/templates/verasonics/reconstruct.py
+    python examples/templates/verasonics/reconstruct.py --input my_file.hdf5
 """
 
 import os

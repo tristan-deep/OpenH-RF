@@ -16,8 +16,8 @@ Requires:
     pip install huggingface_hub
 
 Usage:
-    python examples/saving/verasonics/convert.py
-    python examples/saving/verasonics/convert.py --output my_file.hdf5
+    python examples/templates/verasonics/convert.py
+    python examples/templates/verasonics/convert.py --output my_file.hdf5
 """
 
 import argparse
