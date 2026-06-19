@@ -53,14 +53,14 @@ def main():
     if lens_correction_wl is not None:
         print(f"lens correction  : {lens_correction_wl:.3f} wavelengths (one-way)")
 
+    # Shift initial_times to account for the round-trip lens delay.
+    if lens_correction_wl is not None:
+        round_trip_delay = 2.0 * lens_correction_wl / parameters.center_frequency
+        parameters.initial_times = parameters.initial_times - round_trip_delay
+
     # Build and run the beamforming pipeline defined in pipeline.yaml
     pipeline = Pipeline.from_config(config)
     inputs = pipeline.prepare_parameters(parameters)
-
-    # Shift initial_times to account for the round-trip lens delay.
-    if lens_correction_wl is not None:
-        round_trip_delay = np.float32(2.0 * lens_correction_wl / parameters.center_frequency)
-        inputs["initial_times"] = np.asarray(inputs["initial_times"]) - round_trip_delay
 
     outputs = pipeline(data=raw, **inputs)
 
