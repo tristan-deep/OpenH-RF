@@ -46,12 +46,11 @@ def main():
     # Create a verasonics .mat file by saving your verasonics workspace in matlab.
     with VerasonicsFile(mat_path, "r") as vf:
         log.info("Reading Verasonics file...")
-        data_dict, scan_dict, additional_elements = vf.read_verasonics_file(
+        data_dict, scan_dict, custom_elements = vf.read_verasonics_file(
             allow_accumulate=True,
         )
-
         # extract probe parameters from the verasonics .mat file
-        probe = vf.probe.to_probe_spec()
+        probe_dict = vf.probe.to_probe_spec()
 
         # Generate the zea dataset
         log.info("Generating zea dataset...")
@@ -59,7 +58,7 @@ def main():
             path=str(args.output),
             data=data_dict,
             scan=scan_dict,
-            probe=probe,
+            probe=probe_dict,
             description=("Verasonics Vantage 256 - CIRS phantom plane-wave acquisition."),
             overwrite=True,
             metadata={
@@ -69,6 +68,8 @@ def main():
                 },
                 "credit": "Whoever collected this dataset",
             },
+            # this includes for example the lens correction parameter
+            custom=custom_elements,  # note requires zea v0.1.0a5 or later
         )
 
     print(f"Saved: {args.output}  ({args.output.stat().st_size / 1e6:.1f} MB)")
