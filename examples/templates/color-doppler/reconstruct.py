@@ -8,7 +8,7 @@ Note: the raw data in this example is synthetic (random noise), so the
 output image will appear as unstructured noise — this is expected.
 
 Usage:
-    python examples/saving/color-doppler/reconstruct.py
+    python examples/templates/color-doppler/reconstruct.py
 """
 
 import os

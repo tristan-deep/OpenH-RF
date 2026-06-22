@@ -7,7 +7,7 @@ All data is synthetic (random noise). Replace the arrays with real acquisitions
 to use this script with actual scanner output.
 
 Usage:
-    python examples/saving/segmentation/convert.py
+    python examples/templates/segmentation/convert.py
 """
 
 from pathlib import Path
