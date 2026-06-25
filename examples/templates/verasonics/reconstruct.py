@@ -51,10 +51,6 @@ def main():
     with File(str(args.input)) as f:
         parameters = f.load_parameters(**config.parameters)
         raw = f.data.raw_data[:]  # (n_frames, n_tx, n_ax, n_el, 1) — RF
-        # Verasonics scalar lens correction: one-way delay offset in wavelengths,
-        # applied uniformly across all elements (no per-element refraction model).
-        custom = {ce.name: ce.data for ce in f.custom}
-        lens_correction_wl = custom.get("lens_correction")
 
     # Build and run the beamforming pipeline defined in pipeline.yaml
     pipeline = Pipeline.from_config(config)
