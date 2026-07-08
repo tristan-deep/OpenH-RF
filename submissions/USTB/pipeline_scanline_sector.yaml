@@ -1,0 +1,29 @@
+# Scanline B-mode for steered focused scans (fixed origin, varying angle): each
+# transmit forms one steered image line. Same as pipeline_scanline.yaml but with
+# sector=true (steered beam rays). Displayed on true fan geometry via
+# `parameters.grid` in reconstruct.py.
+
+parameters:
+  f_number: 1.75
+  dynamic_range: [-60, 0]
+  grid_type: scanline
+  selected_transmits: all
+  scanline_sector: true
+  num_scanline_pixels: 700
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    - name: apply_window
+    - name: demodulate
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        enable_receive_apodization: true
+        enable_pfield: false
+        num_patches: 200
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress
