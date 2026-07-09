@@ -64,10 +64,10 @@ Ultrasound File Format (UFF) to zea; RF data is demodulated inside the reconstru
 
 ## Dataset Quantification
 
-- **Number of acquisitions:** 12
-- **Total channel-capture frames:** 18
+- **Number of acquisitions:** 11
+- **Total channel-capture frames:** 17
 - **Train / validation / test split:** not predefined (research dataset).
-- **Total size on disk:** 3696 MB
+- **Total size on disk:** 3464 MB
 
 Per-acquisition summary:
 
@@ -77,7 +77,6 @@ Per-acquisition summary:
 | `FieldII_CPWC_simulation_v2` | 1 | 1 | 6494 | 128 | 1 | 100.0 | 5.13 | 1 |
 | `FieldII_P4_point_scatterers` | 1 | 128 | 14349 | 64 | 1 | 100.0 | 2.56 | 471 |
 | `FieldII_speckle_DMASsimulation300000pts` | 1 | 96 | 10570 | 128 | 1 | 100.0 | 3.50 | 232 |
-| `FieldII_speckle_simulation` | 1 | 96 | 10570 | 128 | 1 | 100.0 | 3.50 | 232 |
 | `FieldII_STAI_dynamic_range` | 1 | 128 | 7792 | 128 | 1 | 100.0 | 5.13 | 401 |
 | `FieldII_STAI_simulated_dynamic_range` | 1 | 128 | 7792 | 128 | 1 | 100.0 | 5.13 | 393 |
 | `FieldII_STAI_uniform_fov` | 1 | 128 | 2771 | 128 | 1 | 25.0 | 5.13 | 141 |

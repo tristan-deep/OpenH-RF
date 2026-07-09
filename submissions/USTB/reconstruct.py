@@ -14,16 +14,24 @@ here. ``pipeline`` values:
 * ``iq``              — baseband IQ data (no demodulation).
 * ``compound``        — non-focused linear scans (plane-wave / diverging / STA).
 
-Acquisitions with many transmit events may additionally set ``refocus: true`` in
-``parameters.yaml``. For those, a second REFoCUS reconstruction (transmit-encoding
-recovery, ``pipeline_refocus.yaml``) is written next to the standard one as
-``<name>_zea_refocus_bmode.png`` — the same load/pipeline/plot workflow, just a
-different pipeline YAML.
+Acquisitions with enough transmit events (>= 8) may additionally set
+``refocus: true`` in ``parameters.yaml``. For those, a second REFoCUS
+reconstruction (transmit-encoding recovery, Bottenus 2018) is written next to the
+standard one as ``<name>_zea_refocus_bmode.png`` — the same load/pipeline/plot
+workflow, just a different pipeline YAML. Phased-array ``sector`` acquisitions use
+the polar ``pipeline_refocus_sector.yaml`` (keeps the sector geometry); every
+other geometry uses the linear/cartesian ``pipeline_refocus.yaml``. REFoCUS is not
+enabled for single/few-transmit (plane-wave tracking, PICMUS) or synthetic
+transmit aperture (already multistatic) acquisitions, where the encoding inversion
+is ill-posed or undefined. The secondary REFoCUS pass is opt-in via ``--refocus``;
+by default only the standard reconstruction is produced.
 
 Usage::
 
-    python reconstruct.py                       # every .hdf5 in all sub-folders
-    python reconstruct.py A_cardiac/<file>.hdf5  # a single acquisition
+    python reconstruct.py                          # standard recon for every .hdf5
+    python reconstruct.py --refocus                # also emit REFoCUS where enabled
+    python reconstruct.py A_cardiac/<file>.hdf5     # a single acquisition
+    python reconstruct.py --refocus A_cardiac/<file>.hdf5
 """
 
 import os
@@ -31,7 +39,7 @@ import os
 os.environ["MPLBACKEND"] = "Agg"
 os.environ.setdefault("KERAS_BACKEND", "jax")
 
-import sys
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -48,6 +56,7 @@ PIPELINE_YAML = {
     "iq": "pipeline_iq.yaml",
     "compound": "pipeline.yaml",
     "refocus": "pipeline_refocus.yaml",
+    "refocus_sector": "pipeline_refocus_sector.yaml",
 }
 
 
@@ -114,13 +123,38 @@ def reconstruct(
 
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="Reconstruct B-mode images for the USTB OpenH-RF (zea) collection."
+    )
+    parser.add_argument(
+        "paths",
+        nargs="*",
+        help="Specific .hdf5 files to reconstruct (default: every .hdf5 in all sub-folders).",
+    )
+    parser.add_argument(
+        "--refocus",
+        action="store_true",
+        help=(
+            "Also emit the secondary REFoCUS reconstruction for acquisitions flagged "
+            "`refocus: true` in parameters.yaml. Off by default."
+        ),
+    )
+    args = parser.parse_args()
+
     zea.init_device()
-    paths = [Path(p) for p in sys.argv[1:]] or sorted(HERE.glob("*/*.hdf5"))
+    paths = [Path(p) for p in args.paths] or sorted(HERE.glob("*/*.hdf5"))
     for path in paths:
         reconstruct(path)
-        # Optional second reconstruction with REFoCUS transmit-encoding recovery.
-        if PARAMETERS[path.stem].get("refocus"):
-            reconstruct(path, pipeline_key="refocus", suffix="_zea_refocus_bmode.png")
+        # Optional second reconstruction with REFoCUS transmit-encoding recovery
+        # (opt-in via --refocus). Sector (phased-array) acquisitions need the polar
+        # refocus pipeline so the sector geometry is preserved; every other geometry
+        # uses the linear one.
+        if not args.refocus:
+            continue
+        cfg = PARAMETERS[path.stem]
+        if cfg.get("refocus"):
+            refocus_key = "refocus_sector" if cfg["pipeline"] == "sector" else "refocus"
+            reconstruct(path, pipeline_key=refocus_key, suffix="_zea_refocus_bmode.png")
 
 
 if __name__ == "__main__":

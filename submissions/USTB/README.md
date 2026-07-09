@@ -24,7 +24,7 @@ to the [OpenH-RF](https://github.com/open-h/OpenH-RF) initiative. All data is pr
 
 ## Contents
 
-41 acquisitions packaged into six application sub-datasets. Each sub-dataset folder contains its
+40 acquisitions packaged into six application sub-datasets. Each sub-dataset folder contains its
 zea `.hdf5` files, a Hugging Face–style `README.md` data card, and one reference B-mode PNG per
 acquisition. The **`reconstruct.py`, `pipeline.yaml`, and the CC BY 4.0 `LICENCE` live once at the
 submission root** — the reconstruction reconstructs every sub-dataset (the pipeline is identical
@@ -37,10 +37,10 @@ across folders), and the single LICENCE covers the whole collection (each data c
 | `B_carotid/` | In-vivo carotid (Verasonics L7-4) | in-vivo human (research) | 6.1 Generalized Reconstruction | 3 |
 | `C_verasonics_phantom/` | Phantom (Verasonics L7-4 / P4) | phantom | 6.1 Generalized Reconstruction | 15 |
 | `D_alpinion_phantom/` | Phantom (Alpinion L3-8) | phantom | 6.1 Generalized Reconstruction | 4 |
-| `E_simulation/` | Simulation (Field II) | simulation | 6.1 Generalized Reconstruction | 12 |
+| `E_simulation/` | Simulation (Field II) | simulation | 6.1 Generalized Reconstruction | 11 |
 | `F_motion/` | Motion estimation (SWE / ARFI, L7-4) | phantom | 6.4 Motion Estimation | 4 |
 
-Total: **41 acquisitions**, ~10 GB on disk.
+Total: **40 acquisitions**, ~10 GB on disk.
 
 ## How to reconstruct
 
@@ -50,7 +50,8 @@ every acquisition in every sub-dataset folder:
 
 ```bash
 export KERAS_BACKEND=jax
-python reconstruct.py                          # every .hdf5 in all sub-folders
+python reconstruct.py                          # standard recon for every .hdf5
+python reconstruct.py --refocus                # also emit REFoCUS where enabled
 python reconstruct.py A_cardiac/<file>.hdf5    # a single acquisition
 ```
 
@@ -74,11 +75,19 @@ scanline-specific operation. Two zea features used in this submission are scanli
 apodization (`enable_receive_apodization`) and `focal_region_length` (focal-region delay blending,
 Rindal et al., IUS 2018).
 
-An acquisition may also set `refocus: true` in `parameters.yaml` (enabled for a few many-angle
-CPWC acquisitions). For those, `reconstruct.py` additionally runs `pipeline_refocus.yaml` —
-REFoCUS transmit-encoding recovery (Bottenus, 2018) that inverts the transmit-encoding matrix to
-recover the multistatic (full-matrix-capture) dataset before pfield DAS — and writes a
-`<name>_zea_refocus_bmode.png` alongside the standard reconstruction, to demonstrate the option.
+An acquisition may also set `refocus: true` in `parameters.yaml`. When `reconstruct.py` is run
+with the `--refocus` flag (off by default), it additionally runs a REFoCUS reconstruction for
+those acquisitions — transmit-encoding recovery (Bottenus, 2018) that
+inverts the transmit-encoding matrix to recover the multistatic (full-matrix-capture) dataset
+before pressure-field-weighted DAS — and writes a `<name>_zea_refocus_bmode.png` alongside the
+standard reconstruction. REFoCUS is enabled for **every acquisition with enough encoded transmits
+for the inversion to be well posed (≥ 8 transmit events)** — coherent plane-wave compounding
+(CPWC), diverging waves (DW), and focused linear (FI) and phased-array sector scans. Phased-array
+`sector` acquisitions use `pipeline_refocus_sector.yaml` (polar grid + scan conversion, preserving
+the sector geometry); every other geometry uses the linear/cartesian `pipeline_refocus.yaml`.
+REFoCUS is **not** enabled where the inversion is ill-posed or undefined: single/few-transmit
+acquisitions (the `n_tx = 1` plane-wave tracking sets and single-angle simulations, PICMUS's
+5-angle IQ) and synthetic transmit aperture (STA) acquisitions, which are already multistatic.
 
 ## Reference images
 
@@ -87,7 +96,8 @@ Each acquisition ships with:
 - `<name>_zea_bmode_old.png` — the initial v2 zea reconstruction (kept for comparison).
 - `<name>_bmode.png` — the canonical USTB MATLAB Delay-And-Sum reconstruction from the public
   [USTB dataset catalog](https://unioslo.github.io/USTB/datasets.html), for cross-validation.
-- `<name>_zea_refocus_bmode.png` — REFoCUS variant, only for acquisitions with `refocus: true`.
+- `<name>_zea_refocus_bmode.png` — REFoCUS variant, for acquisitions with `refocus: true`
+  (CPWC / DW / focused FI / sector with ≥ 8 transmits; not STA or single/few-transmit sets).
 
 ## Licensing & attribution
 
