@@ -1,15 +1,15 @@
 # Scanline B-mode for steered focused scans (fixed origin, varying angle): each
 # transmit forms one steered image line. Same as pipeline_scanline.yaml but with
-# sector=true (steered beam rays). Displayed on true fan geometry via
-# `parameters.grid` in reconstruct.py.
+# grid_type=polar (steered beam rays from each transmit origin). Displayed on
+# true fan geometry via `parameters.grid` in reconstruct.py.
 
 parameters:
   f_number: 1.75
   dynamic_range: [-60, 0]
-  grid_type: scanline
+  enable_scanline: true
+  grid_type: polar
   selected_transmits: all
-  scanline_sector: true
-  num_scanline_pixels: 700
+  grid_size_z: 700
 
 pipeline:
   operations:

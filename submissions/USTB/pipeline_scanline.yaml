@@ -4,10 +4,10 @@
 parameters:
   f_number: 1.75
   dynamic_range: [-60, 0]
-  grid_type: scanline
+  enable_scanline: true
+  grid_type: cartesian
   selected_transmits: all
-  scanline_sector: false
-  num_scanline_pixels: 700
+  grid_size_z: 700
 
 pipeline:
   operations:
