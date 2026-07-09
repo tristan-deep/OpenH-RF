@@ -19,7 +19,7 @@ pipeline:
     - name: beamform
       params:
         beamformer: delay_and_sum
-        enable_receive_apodization: true
+        enable_aligned_apodization: true
         enable_pfield: false
         num_patches: 200
     - name: envelope_detect
