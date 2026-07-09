@@ -7,15 +7,14 @@ All data is synthetic (random noise). Replace the arrays with real acquisitions
 to use this script with actual scanner output.
 
 Usage:
-    python examples/saving/segmentation/convert.py
+    python examples/templates/segmentation/convert.py
 """
 
 from pathlib import Path
 
 import numpy as np
-from zea.beamform.pixelgrid import cartesian_pixel_grid
-
 from zea import File
+from zea.beamform.pixelgrid import cartesian_pixel_grid
 
 OUTPUT = Path(__file__).parent / "segmentation.hdf5"
 
@@ -43,7 +42,7 @@ zlims = (0.0, 30e-3)
 # Data: raw RF + segmentation mask
 # ------------------------------------------------------------------
 # Segmentation labels: integer pixel values map to class names by index
-labels = np.array(["background", "vessel_wall", "lumen"], dtype=np.str_)
+labels = ["background", "vessel_wall", "lumen"]
 segmentation_coordinates = cartesian_pixel_grid(
     xlims=xlims,
     zlims=zlims,
@@ -55,9 +54,7 @@ data = {
     "raw_data": np.random.randn(n_frames, n_tx, n_ax, n_el, 1).astype(np.float32),
     "segmentation": {
         # Boolean mask of shape (frames, z, x, n_classes)
-        "values": np.random.choice(
-            [True, False], (n_frames, seg_h, seg_w, len(labels))
-        ),
+        "values": np.random.choice([True, False], (n_frames, seg_h, seg_w, len(labels))),
         "labels": labels,
         "coordinates": segmentation_coordinates,
     },
@@ -86,8 +83,8 @@ metadata = {
     "credit": "segmentation convert.py",
     "annotations": {
         "anatomy": "carotid",
-        "view": np.array(["cross-section"] * n_frames, dtype=np.str_),
-        "label": np.array(["normal"] * n_frames, dtype=np.str_),
+        "view": "cross-section",
+        "label": "normal",
     },
 }
 

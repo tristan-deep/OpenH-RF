@@ -8,7 +8,7 @@ Note: the raw data in this example is synthetic (random noise), so the
 output image will appear as unstructured noise — this is expected.
 
 Usage:
-    python examples/saving/segmentation/reconstruct.py
+    python examples/templates/segmentation/reconstruct.py
 """
 
 import os
@@ -18,7 +18,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-
 import zea
 from zea import Config, File, Pipeline
 
@@ -53,11 +52,15 @@ def main():
     # Convert the output tensor to a NumPy array and save as PNG
     recon = np.array(outputs["data"])  # (n_frames, grid_z, grid_x)
     image = zea.display.to_8bit(recon[0])
-    plt.figure()
-    plt.imshow(image, extent=parameters.extent_imshow, cmap="gray")
-    plt.tight_layout()
-    plt.savefig(str(OUTPUT))
-    plt.close()
+    zea.visualize.set_mpl_style()
+    plt.imshow(
+        image,
+        extent=parameters.extent_imshow,
+        cmap="gray",
+    )
+    plt.xlabel("X (mm)")
+    plt.ylabel("Z (mm)")
+    plt.savefig(str(OUTPUT), bbox_inches="tight", dpi=100)
 
     print(f"Reconstructed  : {recon.shape}")
     print(f"Saved          : {OUTPUT}")

@@ -5,3 +5,10 @@
 __pycache__/
 .env
 .gradio
+*.egg-info/
+.DS_Store
+*.zip
+
+# Generated example artifacts (written by the example scripts at run time)
+examples/tracked-cirs-phantom/data/
+examples/tracked-cirs-phantom/3d_views/

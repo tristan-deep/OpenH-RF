@@ -4,12 +4,20 @@ Downloads a Verasonics workspace .mat file from the zeahub/phantoms dataset on
 Hugging Face and converts it to the openh-rf HDF5 format using zea.File.create.
 VerasonicsFile reads all scan parameters directly from the .mat file.
 
+.. note::
+
+    The .mat file must be saved in HDF5 format (MATLAB v7.3 or later).
+    Older .mat files are not HDF5-compatible and cannot be read by this converter.
+    To save in the correct format from MATLAB, use the '-v7.3' flag::
+
+        save('C:/path/to/raw_data.mat', '-v7.3')
+
 Requires:
     pip install huggingface_hub
 
 Usage:
-    python examples/saving/verasonics/convert.py
-    python examples/saving/verasonics/convert.py --output my_file.hdf5
+    python examples/templates/verasonics/convert.py
+    python examples/templates/verasonics/convert.py --output my_file.hdf5
 """
 
 import argparse
@@ -38,21 +46,31 @@ def main():
     # Create a verasonics .mat file by saving your verasonics workspace in matlab.
     with VerasonicsFile(mat_path, "r") as vf:
         log.info("Reading Verasonics file...")
-        data_dict, scan_dict, additional_elements = vf.read_verasonics_file(
+        data_dict, scan_dict, custom_elements = vf.read_verasonics_file(
             allow_accumulate=True,
         )
+        # extract probe parameters from the verasonics .mat file
+        probe_dict = vf.probe.to_probe_spec()
 
         # Generate the zea dataset
         log.info("Generating zea dataset...")
-        f = File.create(
+        File.create(
             path=str(args.output),
             data=data_dict,
             scan=scan_dict,
-            probe=vf.probe.to_probe_spec(),
-            description="Verasonics Vantage 256 - CIRS phantom plane-wave acquisition (from .mat file)",
+            probe=probe_dict,
+            description=("Verasonics Vantage 256 - CIRS phantom plane-wave acquisition."),
             overwrite=True,
+            metadata={
+                "subject": {
+                    "type": "phantom",
+                    "id": "cirs-001",
+                },
+                "credit": "Whoever collected this dataset",
+            },
+            # this includes for example the lens correction parameter
+            custom=custom_elements,  # note requires zea v0.1.0a5 or later
         )
-        f.close()
 
     print(f"Saved: {args.output}  ({args.output.stat().st_size / 1e6:.1f} MB)")
 

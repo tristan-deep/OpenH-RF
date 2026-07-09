@@ -7,15 +7,14 @@ All data is synthetic (random noise). Replace the arrays with real acquisitions
 to use this script with actual scanner output.
 
 Usage:
-    python examples/saving/echocardiography/convert.py
+    python examples/templates/echocardiography/convert.py
 """
 
 from pathlib import Path
 
 import numpy as np
-from zea.beamform.pixelgrid import cartesian_pixel_grid
-
 from zea import File
+from zea.beamform.pixelgrid import cartesian_pixel_grid
 
 OUTPUT = Path(__file__).parent / "echocardiography.hdf5"
 
@@ -55,9 +54,7 @@ data = {
     "raw_data": np.random.randn(n_frames, n_tx, n_ax, n_el, 1).astype(np.float32),
     "image": {
         # Pre-computed B-mode stored alongside raw data as a reference
-        "values": np.random.randint(
-            0, 255, (n_frames, img_h, img_w, 1), dtype=np.uint8
-        ),
+        "values": np.random.randint(0, 255, (n_frames, img_h, img_w, 1), dtype=np.uint8),
         "coordinates": map_coordinates,
     },
     "strain_percentage_map": {
@@ -96,14 +93,14 @@ metadata = {
         "fat_percentage": 22.0,
     },
     "ecg": {
-        "samples": np.random.randint(50, 200, (500,), dtype=np.uint8),
+        "samples": np.zeros((500,), dtype=np.float32),
         "start_time_offset": np.float32(0.0),
         "sampling_frequency": np.float32(500.0),
     },
     "annotations": {
         "anatomy": "heart",
-        "view": np.array(["a4c", "a2c", "plax"] * 4, dtype=np.str_)[:n_frames],
-        "label": np.array(["normal"] * n_frames, dtype=np.str_),
+        "view": (["a4c", "a2c", "plax"] * 4)[:n_frames],
+        "label": "normal",
     },
     "text_report": (
         "Normal LV size and systolic function. "

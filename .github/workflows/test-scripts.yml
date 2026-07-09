@@ -23,8 +23,17 @@ jobs:
           python-version: "3.11"
           enable-cache: true
 
+      - name: Check uv.lock is up to date
+        run: uv lock --check
+
       - name: Install dependencies
         run: uv sync --extra test --frozen
+
+      - name: Format check with ruff
+        run: uv run ruff format --check .
+
+      - name: Lint with ruff
+        run: uv run ruff check .
 
       - name: Run lightweight script tests
         run: uv run pytest tests/ -m "not heavy" -v
