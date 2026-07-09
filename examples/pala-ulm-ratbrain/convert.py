@@ -21,6 +21,7 @@ import h5py
 import numpy as np
 import requests
 from tqdm import tqdm
+
 from zea import File
 
 DEFAULT_INPUT = Path(__file__).parent / "RF" / "RF_002.hdf5"

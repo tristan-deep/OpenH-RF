@@ -19,8 +19,9 @@ from pathlib import Path
 os.environ.setdefault("KERAS_BACKEND", "jax")
 
 import numpy as np
-import zea
 from scipy.spatial.transform import Rotation, Slerp
+
+import zea
 
 # Frame sampling + voxel grid (kept as constants to keep the CLI minimal).
 FRAME_STEP = 2  # take every Nth image frame

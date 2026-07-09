@@ -24,6 +24,7 @@ import argparse
 from pathlib import Path
 
 from huggingface_hub import hf_hub_download
+
 from zea import File, log
 from zea.data.convert.verasonics import VerasonicsFile
 

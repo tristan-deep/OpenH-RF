@@ -13,6 +13,7 @@ Usage:
 from pathlib import Path
 
 import numpy as np
+
 from zea import File
 from zea.beamform.pixelgrid import cartesian_pixel_grid
 
