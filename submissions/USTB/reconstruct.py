@@ -68,6 +68,7 @@ def reconstruct(
     """
     cfg = PARAMETERS[path.stem]
     config = zea.Config.from_path(str(HERE / PIPELINE_YAML[pipeline_key or cfg["pipeline"]]))
+    is_scanline = bool(config.parameters.get("enable_scanline"))
     overrides = dict(config.parameters)
     if "dynamic_range" in cfg:
         overrides["dynamic_range"] = cfg["dynamic_range"]
@@ -78,7 +79,9 @@ def reconstruct(
 
     # Load everything we need from the file, then close it before processing.
     with zea.File(str(path)) as f:
-        if config.parameters.get("grid_type") == "polar":
+        # polar_limits frames the shared (non-scanline) polar grid; scanline
+        # imaging builds its own per-transmit rays and ignores it.
+        if config.parameters.get("grid_type") == "polar" and not is_scanline:
             angles = np.asarray(f.scan.polar_angles, dtype=float)
             overrides["polar_limits"] = (float(angles.min()), float(angles.max()))
         parameters = f.load_parameters(**overrides)
@@ -94,7 +97,7 @@ def reconstruct(
 
     zea.visualize.set_mpl_style()
     fig, ax = plt.subplots(figsize=(5, 6))
-    if config.parameters.get("grid_type") == "scanline":
+    if is_scanline:
         # Scanline geometry is defined by the beamforming grid.
         gx = np.asarray(parameters.grid[..., 0]) * 1e3
         gz = np.asarray(parameters.grid[..., 2]) * 1e3
