@@ -24,7 +24,7 @@ to the [OpenH-RF](https://github.com/open-h/OpenH-RF) initiative. All data is pr
 
 ## Contents
 
-40 acquisitions packaged into six application sub-datasets. Each sub-dataset folder contains its
+39 acquisitions packaged into six application sub-datasets. Each sub-dataset folder contains its
 zea `.hdf5` files, a Hugging Face–style `README.md` data card, and one reference B-mode PNG per
 acquisition. The **`reconstruct.py`, `pipeline.yaml`, and the CC BY 4.0 `LICENCE` live once at the
 submission root** — the reconstruction reconstructs every sub-dataset (the pipeline is identical
@@ -33,14 +33,14 @@ across folders), and the single LICENCE covers the whole collection (each data c
 
 | Folder | Sub-dataset | Tier | RFP task | Acq. |
 |---|---|---|---|---|
-| `A_cardiac/` | In-vivo cardiac (Verasonics P4-2) | in-vivo human (research) | 6.1 Generalized Reconstruction | 3 |
+| `A_cardiac/` | In-vivo cardiac (Verasonics P4-2) | in-vivo human (research) | 6.1 Generalized Reconstruction | 2 |
 | `B_carotid/` | In-vivo carotid (Verasonics L7-4) | in-vivo human (research) | 6.1 Generalized Reconstruction | 3 |
 | `C_verasonics_phantom/` | Phantom (Verasonics L7-4 / P4) | phantom | 6.1 Generalized Reconstruction | 15 |
 | `D_alpinion_phantom/` | Phantom (Alpinion L3-8) | phantom | 6.1 Generalized Reconstruction | 4 |
 | `E_simulation/` | Simulation (Field II) | simulation | 6.1 Generalized Reconstruction | 11 |
 | `F_motion/` | Motion estimation (SWE / ARFI, L7-4) | phantom | 6.4 Motion Estimation | 4 |
 
-Total: **40 acquisitions**, ~10 GB on disk.
+Total: **39 acquisitions**, ~10 GB on disk.
 
 ## How to reconstruct
 

@@ -63,17 +63,16 @@ Ultrasound File Format (UFF) to zea; RF data is demodulated inside the reconstru
 
 ## Dataset Quantification
 
-- **Number of acquisitions:** 3
-- **Total channel-capture frames:** 80
+- **Number of acquisitions:** 2
+- **Total channel-capture frames:** 75
 - **Train / validation / test split:** not predefined (research dataset).
-- **Total size on disk:** 4368 MB
+- **Total size on disk:** 4095 MB
 
 Per-acquisition summary:
 
 | Acquisition | frames | transmits | samples | elements | n_ch | fs (MHz) | fc (MHz) | size (MB) |
 |---|---|---|---|---|---|---|---|---|
 | `Verasonics_P2-4_apical_four_chamber_subject_1` | 25 | 101 | 2176 | 64 | 1 | 11.9 | 2.98 | 1366 |
-| `Verasonics_P2-4_parasternal_long_small` | 5 | 101 | 2176 | 64 | 1 | 11.9 | 2.98 | 273 |
 | `Verasonics_P2-4_parasternal_long_subject_1` | 50 | 101 | 2176 | 64 | 1 | 11.9 | 2.98 | 2729 |
 
 Per-sample feature table:
