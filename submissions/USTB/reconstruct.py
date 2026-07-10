@@ -9,8 +9,7 @@ same workflow — load parameters, run the pipeline, plot — with no per-file l
 here. ``pipeline`` values:
 
 * ``scanline``        — focused linear (FI) scans (line-by-line beamforming).
-* ``scanline_sector`` — steered focused scans (line-by-line, fan geometry).
-* ``sector``          — phased-array focused sector scans (polar + scan convert).
+* ``sector``          — phased-array / steered focused sector scans (polar + scan convert).
 * ``iq``              — baseband IQ data (no demodulation).
 * ``compound``        — non-focused linear scans (plane-wave / diverging / STA).
 
@@ -51,7 +50,6 @@ HERE = Path(__file__).parent
 PARAMETERS = zea.Config.from_path(str(HERE / "parameters.yaml"))
 PIPELINE_YAML = {
     "scanline": "pipeline_scanline.yaml",
-    "scanline_sector": "pipeline_scanline_sector.yaml",
     "sector": "pipeline_sector.yaml",
     "iq": "pipeline_iq.yaml",
     "compound": "pipeline.yaml",

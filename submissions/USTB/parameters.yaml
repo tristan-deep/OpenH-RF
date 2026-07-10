@@ -2,8 +2,7 @@
 # reconstruct.py. For each acquisition:
 #   pipeline      -- which reconstruction to use:
 #                    scanline (focused linear FI, per-beam),
-#                    scanline_sector (steered focused, fan geometry),
-#                    sector   (phased focused, pipeline_sector.yaml),
+#                    sector   (phased/steered focused, pipeline_sector.yaml),
 #                    iq       (baseband IQ, pipeline_iq.yaml),
 #                    compound (non-focused linear, pipeline.yaml).
 #   zlims/xlims   -- display window in mm (framing only).
@@ -180,7 +179,7 @@ FieldII_STAI_uniform_fov:
   zlims: [1, 55]
   xlims: [-20, 20]
 FieldII_speckle_DMASsimulation300000pts:
-  pipeline: scanline_sector
+  pipeline: sector
   refocus: true
   zlims: [1, 60]
   xlims: [-14, 14]

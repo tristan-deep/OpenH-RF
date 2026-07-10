@@ -63,8 +63,7 @@ per-file logic in the script. Each `pipeline` value maps to a `zea.Pipeline` YAM
 | `pipeline` | Used for | `zea.Pipeline` |
 |---|---|---|
 | `scanline` | focused linear (FI) scans | `pipeline_scanline.yaml`: `beamform` on a `grid_type: scanline` grid with `enable_receive_apodization: true` — one focused transmit per image line. The artifact-free reconstruction for a walking-focus linear scan (compounding focused beams onto a shared grid leaves a band at the focal depth). |
-| `scanline_sector` | steered focused scans (fixed origin, varying angle) | `pipeline_scanline_sector.yaml`: same scanline setup along steered rays, displayed on fan geometry from `parameters.grid`. Preserves speckle that compounding would smooth away. |
-| `sector` | phased-array focused sector scans | `pipeline_sector.yaml`: polar grid + scan conversion; pressure-field-weighted DAS with peaked weighting (≈ scanline) and `focal_region_length`. |
+| `sector` | phased-array / steered focused sector scans | `pipeline_sector.yaml`: polar grid + scan conversion; pressure-field-weighted DAS with peaked weighting (≈ scanline) and `focal_region_length`. |
 | `iq` | baseband IQ (`n_ch == 2`, e.g. PICMUS) | `pipeline_iq.yaml` (no demodulation step). |
 | `compound` | non-focused linear (plane-wave / diverging / STA / SWE-ARFI) | `pipeline.yaml`: coherent compounding, no pfield (these insonify the whole field of view). |
 
