@@ -25,10 +25,6 @@ Verasonics_P2-4_apical_four_chamber_subject_1:
   pipeline: sector
   refocus: true
   zlims: [1, 110]
-Verasonics_P2-4_parasternal_long_small:
-  pipeline: sector
-  refocus: true
-  zlims: [1, 110]
 Verasonics_P2-4_parasternal_long_subject_1:
   pipeline: sector
   refocus: true
