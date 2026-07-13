@@ -1,0 +1,44 @@
+# B-mode pipeline for phased-array focused sector scans.
+#
+# Beamformed on a polar grid (angular limits auto-derived from the transmit
+# angles) then scan-converted to cartesian for display. The full receive
+# aperture is used (f_number 0): a finite f-number mask is defined relative to
+# the vertical axis and would reject the wide steering angles at the sector edges.
+# Pressure-field weighting and focal-region smoothing are enabled (focused data);
+# pfield is peaked (see pfield_kwargs) to approximate per-beam scanline imaging.
+#
+# apply_window tapers/zeros the start of each RF line to suppress the transmit
+# near-field ringdown and receive sidelobes.
+
+parameters:
+  f_number: 0
+  grid_type: polar
+  grid_size_x: 400
+  grid_size_z: 600
+  dynamic_range: [-60, 0]
+  selected_transmits: all
+  focal_region_length: 0.002
+  pfield_kwargs:
+    interpolation: bilinear
+    # Peaked weighting (high alpha + percentile) concentrates each pixel on its
+    # dominant transmit beam, recovering the sharp specular structure of a dense
+    # focused sector that flat weighting would smooth away.
+    percentile: 70
+    alpha: 15
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    - name: apply_window
+    - name: demodulate
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        enable_pfield: true
+        num_patches: 200
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress
+    - name: scan_convert

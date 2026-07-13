@@ -1,0 +1,30 @@
+# B-mode pipeline for baseband IQ linear-array acquisitions (n_ch == 2).
+#
+# The data is already demodulated, so there is no demodulate step. These
+# acquisitions (e.g. PICMUS CPWC) are non-focused, so pressure-field weighting
+# is disabled.
+#
+# apply_window tapers/zeros the start of each RF line to suppress the transmit
+# near-field ringdown and receive sidelobes.
+
+parameters:
+  f_number: 1.75
+  grid_size_x: 400
+  grid_size_z: 600
+  dynamic_range: [-60, 0]
+  selected_transmits: all
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    - name: apply_window
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        enable_pfield: false
+        num_patches: 200
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress

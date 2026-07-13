@@ -1,0 +1,217 @@
+# Per-acquisition reconstruction parameters, shared by every folder's
+# reconstruct.py. For each acquisition:
+#   pipeline      -- which reconstruction to use:
+#                    scanline (focused linear FI, per-beam),
+#                    sector   (phased/steered focused, pipeline_sector.yaml),
+#                    iq       (baseband IQ, pipeline_iq.yaml),
+#                    compound (non-focused linear, pipeline.yaml).
+#   zlims/xlims   -- display window in mm (framing only).
+#   dynamic_range -- display dynamic range in dB (default [-60, 0]).
+#   refocus       -- if true, also emit a REFoCUS variant (<name>_zea_refocus_bmode.png).
+#                    REFoCUS (Bottenus 2018) inverts the transmit-encoding matrix to
+#                    recover the multistatic (full-matrix-capture) dataset before DAS.
+#                    Enabled for every acquisition with enough encoded transmits to make
+#                    the inversion well posed (>= 8 transmit events). reconstruct.py picks
+#                    the polar pipeline_refocus_sector.yaml for `sector` acquisitions and
+#                    the linear/cartesian pipeline_refocus.yaml for everything else.
+#                    NOT enabled where REFoCUS is ill-posed or undefined:
+#                      * single/few-transmit acquisitions (plane-wave tracking with
+#                        n_tx=1, PICMUS with 5 angles),
+#                      * synthetic transmit aperture (STA) acquisitions, which are
+#                        already multistatic (nothing to decode).
+
+# A_cardiac
+Verasonics_P2-4_apical_four_chamber_subject_1:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 110]
+Verasonics_P2-4_parasternal_long_subject_1:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 110]
+
+# B_carotid
+L7_FI_carotid_cross_1:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+L7_FI_carotid_cross_2:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+L7_FI_carotid_cross_sub_2:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+
+# C_verasonics_phantom
+FI_P4_cysts_center:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 115]
+FI_P4_point_scatterers:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 115]
+L7_CPWC_193328:
+  pipeline: compound
+  refocus: true
+  zlims: [0, 50]
+  xlims: [-20, 20]
+L7_CPWC_TheGB:
+  pipeline: compound
+  refocus: true
+  zlims: [3, 45]
+  xlims: [-20, 20]
+L7_DW_TheGB:
+  pipeline: compound
+  refocus: true
+  zlims: [3, 50]
+  xlims: [-20, 20]
+L7_FI_IUS2018:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+L7_FI_TheGB:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+L7_FI_Verasonics:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+L7_FI_Verasonics_CIRS:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+L7_FI_Verasonics_CIRS_points:
+  pipeline: scanline
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-19, 19]
+# STA (already multistatic -> REFoCUS N/A)
+L7_STA_TheGB:
+  pipeline: compound
+  zlims: [3, 45]
+  xlims: [-20, 20]
+P4_FI_121444_45mm_focus:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 58]
+# STA (already multistatic -> REFoCUS N/A)
+STAI_UFF_CIRS_phantom:
+  pipeline: compound
+  zlims: [10, 80]
+  xlims: [-15, 15]
+# STA (already multistatic -> REFoCUS N/A)
+experimental_STAI_dynamic_range:
+  pipeline: compound
+  zlims: [3, 55]
+  xlims: [-19, 19]
+# STA (n_tx == n_el == 128, already multistatic -> REFoCUS N/A)
+experimental_dynamic_range_phantom:
+  pipeline: compound
+  zlims: [3, 58]
+  xlims: [-19, 19]
+
+# D_alpinion_phantom
+Alpinion_L3-8_CPWC_hyperechoic_scatterers:
+  pipeline: compound
+  refocus: true
+  zlims: [3, 55]
+  xlims: [-19, 19]
+Alpinion_L3-8_CPWC_hypoechoic:
+  pipeline: compound
+  refocus: true
+  zlims: [5, 50]
+  xlims: [-19, 19]
+Alpinion_L3-8_FI_hyperechoic_scatterers:
+  pipeline: scanline
+  refocus: true
+  zlims: [3, 55]
+  xlims: [-19, 19]
+Alpinion_L3-8_FI_hypoechoic:
+  pipeline: scanline
+  refocus: true
+  zlims: [0, 60]
+  xlims: [-19, 19]
+  dynamic_range: [-50, 0]
+
+# E_simulation
+# Single plane wave (n_tx=1) -> REFoCUS N/A
+FieldII_CPWC_point_scatterers_res_v2:
+  pipeline: compound
+  zlims: [35, 42]
+  xlims: [-3, 3]
+# Single plane wave (n_tx=1) -> REFoCUS N/A
+FieldII_CPWC_simulation_v2:
+  pipeline: compound
+  zlims: [3, 45]
+  xlims: [-20, 20]
+FieldII_P4_point_scatterers:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 110]
+# STA (already multistatic -> REFoCUS N/A)
+FieldII_STAI_dynamic_range:
+  pipeline: compound
+  zlims: [5, 55]
+  xlims: [-20, 20]
+# STA (already multistatic -> REFoCUS N/A)
+FieldII_STAI_simulated_dynamic_range:
+  pipeline: compound
+  zlims: [5, 55]
+  xlims: [-20, 20]
+# STA (already multistatic -> REFoCUS N/A)
+FieldII_STAI_uniform_fov:
+  pipeline: compound
+  zlims: [1, 55]
+  xlims: [-20, 20]
+FieldII_speckle_DMASsimulation300000pts:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 60]
+  xlims: [-14, 14]
+# Baseband IQ, only 5 plane-wave angles -> REFoCUS N/A
+PICMUS_numerical_calib_v2:
+  pipeline: iq
+  zlims: [5, 50]
+  xlims: [-19, 19]
+speckle_sim_FI_P4_probe_apod_1_speckle_long_many_angles:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 120]
+speckle_sim_FI_P4_probe_apod_2_speckle_long_many_angles:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 120]
+speckle_sim_FI_P4_probe_apod_3_speckle_long_many_angles:
+  pipeline: sector
+  refocus: true
+  zlims: [1, 120]
+
+# F_motion
+# Plane-wave tracking (n_tx=1 per frame) -> REFoCUS N/A
+ARFI_dataset:
+  pipeline: compound
+  zlims: [1, 40]
+  xlims: [-19, 19]
+SWE_L7_type_I:
+  pipeline: compound
+  zlims: [1, 40]
+  xlims: [-19, 19]
+SWE_L7_type_III:
+  pipeline: compound
+  zlims: [1, 40]
+  xlims: [-19, 19]
+SWE_L7_type_IV:
+  pipeline: compound
+  zlims: [1, 40]
+  xlims: [-19, 19]

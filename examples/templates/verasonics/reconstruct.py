@@ -18,8 +18,6 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import zea
-from zea import Config, File, Pipeline
 from zea.ops import (
     Beamform,
     Cast,
@@ -28,6 +26,9 @@ from zea.ops import (
     LogCompress,
     Normalize,
 )
+
+import zea
+from zea import Config, File, Pipeline
 
 HERE = Path(__file__).parent
 DEFAULT_INPUT = HERE / "verasonics_sample.hdf5"
@@ -93,6 +94,10 @@ def main():
     with File(str(args.input)) as f:
         parameters = f.load_parameters(**config.parameters)
         raw = f.data.raw_data[:]  # (n_frames, n_tx, n_ax, n_el, 1) — RF
+        # Verasonics scalar lens correction: one-way delay offset in wavelengths,
+        # applied uniformly across all elements (no per-element refraction model).
+        custom = {ce.name: ce.data for ce in f.custom}
+        lens_correction_wl = custom.get("lens_correction")
 
     # Build and run the beamforming pipeline loaded from pipeline.yaml
     pipeline = Pipeline.from_config(config)

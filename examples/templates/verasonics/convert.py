@@ -23,10 +23,11 @@ Usage:
 import argparse
 from pathlib import Path
 
-import zea
 from huggingface_hub import hf_hub_download
-from zea import File, log
 from zea.data.convert.verasonics import VerasonicsFile
+
+import zea
+from zea import File, log
 
 HF_REPO = "zeahub/phantoms"
 HF_FILENAME = "2025_05_19_cirs_planewave.mat"

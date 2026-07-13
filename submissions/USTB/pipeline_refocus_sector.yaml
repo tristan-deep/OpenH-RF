@@ -1,0 +1,53 @@
+# REFoCUS transmit-encoding recovery for phased-array focused SECTOR scans.
+#
+# The sector counterpart of pipeline_refocus.yaml: REFoCUS (Bottenus 2018)
+# inverts the transmit-encoding matrix to recover the multistatic (full-matrix-
+# capture) dataset from the focused sector beams, which is then beamformed with
+# pressure-field-weighted Delay-And-Sum on a polar grid and scan-converted to
+# cartesian for display. Compared with pipeline_refocus.yaml (linear/cartesian)
+# this keeps the phased-array geometry: polar grid (angular limits auto-derived
+# from the transmit angles) and the full receive aperture (f_number 0), because
+# a finite f-number would reject the wide steering angles at the sector edges.
+#
+# Used for sector acquisitions flagged `refocus: true` in parameters.yaml. Like
+# the linear REFoCUS pipeline it needs enough transmit events to be well posed
+# (>= 8); the standard sector reconstruction (pipeline_sector.yaml) is still
+# produced for those files as well.
+#
+# The peaked pfield weighting / focal_region_length used in pipeline_sector.yaml
+# are dropped here: after REFoCUS the transmits are synthetic per-element events,
+# so the "dominant focused beam" weighting no longer applies (matches the plain
+# pfield DAS used in the linear REFoCUS pipeline).
+#
+# jit_compile is disabled on refocus to avoid a cuBLASLt autotuning failure on
+# the complex matmul under XLA on some GPUs.
+
+parameters:
+  f_number: 0
+  grid_type: polar
+  grid_size_x: 400
+  grid_size_z: 600
+  dynamic_range: [-60, 0]
+  selected_transmits: all
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    - name: apply_window
+    - name: refocus
+      params:
+        method: adjoint
+        param: null
+        jit_compile: false
+    - name: demodulate
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        enable_pfield: true
+        num_patches: 200
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress
+    - name: scan_convert
