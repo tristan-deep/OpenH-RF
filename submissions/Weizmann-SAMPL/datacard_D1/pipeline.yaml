@@ -1,0 +1,33 @@
+# Beamforming config for the L11-5v thyroid scans (focused ray-line imaging).
+# Copied unchanged from phantom_test/pipeline.yaml -- same probe.
+#
+# RF data is real (not IQ/baseband, sampleMode=NS200BW) so it is demodulated
+# before beamforming. grid_size_x/z fix the *output* resolution; the actual
+# depth mapped onto it comes from each file's own N_AX and can differ by
+# patient -- convert.py picks N_AX from whichever checkpoint's settings are
+# active for the frames it kept (e.g. D1: N_AX=2048, ~50mm one-way; A3:
+# N_AX=2176, ~53mm one-way, both in 1540 m/s tissue).
+
+parameters:
+  grid_size_x: 377
+  grid_size_z: 525
+  dynamic_range: [-60, 0]
+  apply_lens_correction: true
+  focal_region_length: 0.02
+  # lens_thickness and lens_sound_speed are read from the probe spec in the file
+  # (convert.py derives them from the Verasonics lens_correction custom element
+  # via estimate_lens_probe_params) -- no manual initial_times shift needed here.
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    - demodulate
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        num_patches: 200
+    - envelope_detect
+    - normalize
+    - log_compress
