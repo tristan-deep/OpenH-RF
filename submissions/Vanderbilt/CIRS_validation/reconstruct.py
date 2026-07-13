@@ -17,6 +17,7 @@ import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
+import numpy as np
 from zea.ops import (
     Beamform,
     Cast,
@@ -24,6 +25,7 @@ from zea.ops import (
     EnvelopeDetect,
     LogCompress,
     Normalize,
+    ScanConvert,
 )
 
 import zea
@@ -35,12 +37,17 @@ DEFAULT_INPUT = HERE / "CIRS_sample.hdf5"
 DEFAULT_OUTPUT = HERE / "CIRS_bmode_final.png"
 CONFIG = HERE / "pipeline.yaml"
 
+# P4-2v is a phased array (sector scan), so beamform on a polar grid and
+# scan convert to Cartesian for display, rather than beamforming directly
+# on a Cartesian grid. polar_limits is pinned to the actual transmit angle
+# range (+/-45 deg)
 PARAMETERS = {
+    "grid_type": "polar",
+    "polar_limits": [-np.pi / 4, np.pi / 4],
     "grid_size_x": 1084,
     "grid_size_z": 636,
     "dynamic_range": [-80, 0],
     "zlims": [0, 0.18],
-    "xlims": [-0.08, 0.06],
     "apply_lens_correction": False,
     "f_number": 0,
 }
@@ -60,6 +67,7 @@ def build_pipeline() -> Pipeline:
             EnvelopeDetect(),
             Normalize(),
             LogCompress(),
+            ScanConvert(),
         ],
     )
 

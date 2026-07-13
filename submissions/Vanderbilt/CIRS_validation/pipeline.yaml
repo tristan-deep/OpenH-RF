@@ -15,7 +15,12 @@ pipeline:
             - 0.0
             - 1.0
     - log_compress
+    - scan_convert
 parameters:
+    grid_type: polar
+    polar_limits:
+    - -0.7853981633974483
+    - 0.7853981633974483
     grid_size_x: 1084
     grid_size_z: 636
     dynamic_range:
@@ -24,8 +29,5 @@ parameters:
     zlims:
     - 0
     - 0.18
-    xlims:
-    - -0.08
-    - 0.06
     apply_lens_correction: false
     f_number: 0
