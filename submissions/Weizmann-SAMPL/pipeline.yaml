@@ -23,6 +23,7 @@ pipeline:
     - name: keras.ops.cast
       params:
         dtype: float32
+    - apply_window
     - demodulate
     - name: beamform
       params:

@@ -18,13 +18,12 @@ tags:
 
 The data set consists of clinical ultrasound channel data acquired
 with a Verasonics Vantage 128 system and an L11-5v linear array probe, imaging
-the thyroid gland of 30 adult healthy volunteers. The scans were carried out by a senior radiologist 
-who specializes in ultrasound thyroid imaging. The purpose of the scans is to provide a complete set of channel data 
-of a thyroid gland scan of the full anatomy. 
+the thyroid gland of 30 adult healthy volunteers. The scans were carried out by a senior radiologist
+who specializes in ultrasound thyroid imaging. The purpose of the scans is to provide a complete set of channel data of a thyroid gland scan of the full anatomy.
 
 ## Dataset Contributor(s)
 
- Prof. Yonina Eldar's SAMPLLAB Group, Faculty of Mathematics and Computer Science, Weizmann Institute of Science, Rehovot, Israel.
+Prof. Yonina Eldar's SAMPLLAB Group, Faculty of Mathematics and Computer Science, Weizmann Institute of Science, Rehovot, Israel.
 
 
 ## Dataset Creation Date
@@ -39,13 +38,13 @@ consent obtained from each subject prior to scanning.
 ## Intended Usage
 
 General-purpose ultrasound channel-data foundation model pretraining and
-evaluation — in particular DAS beamforming/reconstruction, inverse speed of sound imaging. 
+evaluation — in particular DAS beamforming/reconstruction, inverse speed of sound imaging.
 Suitable as a base for future downstream tasks (e.g. thyroid
-segmentation, nodule detection) if paired with additional annotations from the B-mode images. 
+segmentation, nodule detection) if paired with additional annotations from the B-mode images.
 
 ## Dataset Characterization
 
-- **Data Collection Method:** clinical 
+- **Data Collection Method:** clinical
 - **Labeling Method:** N/A — no annotations included
 - **Acquisition system:** Verasonics Vantage 128 system, L11-5v linear array
   probe, center frequency 7.6 MHz (76.8% fractional
@@ -55,11 +54,11 @@ segmentation, nodule detection) if paired with additional annotations from the B
 
 ## Dataset Format
 
-zea file format, one acquisition HDF5 file per subject. Before packaging, 
-the frames prior to workspace parameter freezing were removed from the raw channel data frames. 
+zea file format, one acquisition HDF5 file per subject. Before packaging,
+the frames prior to workspace parameter freezing were removed from the raw channel data frames.
 
 ## Dataset Quantification
-- Number of samples / acquisitions / channels: ~1600 / 128 / 128 
+- Number of samples / acquisitions / channels: ~1600 / 128 / 128
 - Number of frames:  average 250 (dependent on subject)
 - No train/validation/test split
 - Total size on disk: 374 GB
@@ -93,7 +92,7 @@ the frames prior to workspace parameter freezing were removed from the raw chann
 
 
 ## Subject Metadata
-- number of subjects: 30, 
+- number of subjects: 30,
 - age range: 18-65,
 - 20 Female , 10 Male
 - Thyroid gland
@@ -150,16 +149,16 @@ acquisition.
 
 - `decimSampleRate`, `quadDecim`, and `demodFrequency` are absent from the
   raw Verasonics workspace (`BaselineWorkspace.mat`) and were instead
-  sourced from this session's recalibration checkpoint files, 
+  sourced from this session's recalibration checkpoint files,
   where they were confirmed constant.
 - The default beamforming grid in `pipeline.yaml` (`grid_size_x=300`,
   `grid_size_z=400`) is coarser than the half-wavelength Nyquist rate for
   this probe/frequency; this only affects the resolution of the example
   reconstruction images, not the released raw channel data.
 - The number of frames for each subject is variable, depending on the subject's
-  anatomy and the radiologist's scanning protocol. It may also be affected by 
-  bottlenecks in the Verasonics system's data transfer rate, 
-  which can cause "dropped frames" when the system cannot keep up with the 
+  anatomy and the radiologist's scanning protocol. It may also be affected by
+  bottlenecks in the Verasonics system's data transfer rate,
+  which can cause "dropped frames" when the system cannot keep up with the
   acquisition speed.
 
 ## Ethical Considerations
