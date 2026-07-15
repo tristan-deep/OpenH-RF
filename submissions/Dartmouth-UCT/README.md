@@ -96,13 +96,14 @@ public domain).
 All data are packaged in the **`zea` HDF5 file format** (one `.hdf5` file per
 acquisition), written entirely through `zea.File.create`. Each file stores the
 raw channel data under `tracks/track_0/data/raw_data`, the acquisition parameters
-under `tracks/track_0/scan`, the ring geometry under `probe`, and the voxel-level
-ground truth as native zea map fields `tracks/track_0/data/sos_map` and
-`tracks/track_0/data/attenuation_map` (each with per-pixel `coordinates`).
-Acquisition-specific metadata that has no standard spec field (tissue class,
-z-plane indices, element focus) is stored as zea `CustomElement`s under the
-top-level `custom/` group. Files are laid out by simulation type: `data/2d/`
-(2D-sim) and `data/3d/` (3D-sim), produced by
+under `tracks/track_0/scan`, the ring geometry under `probe` (in the **XZ imaging
+plane**, y = elevation), and the voxel-level ground truth as native zea map fields
+`tracks/track_0/data/sos_map` and `tracks/track_0/data/attenuation_map` (each with
+per-pixel `coordinates`). Tissue class is stored in `metadata/annotations`
+(`anatomy`, `label`); only fields with no standard spec home (z-plane indices,
+element focus) are zea `CustomElement`s under the top-level `custom/` group. Files
+are laid out by simulation type: `data/2d/` (2D-sim) and `data/3d/` (3D-sim),
+produced by
 [`convert_2d_to_zea.py`](convert_2d_to_zea.py) and
 [`convert_3d_to_zea.py`](convert_3d_to_zea.py) respectively.
 
@@ -147,12 +148,13 @@ top-level `custom/` group. Files are laid out by simulation type: `data/2d/`
 | `tracks/track_0/scan/tx_apodizations` | `(256, 256)` | float32 | – | Identity: transmit event *i* fires element *i* |
 | `tracks/track_0/scan/t0_delays` | `(256, 256)` | float32 | s | Transmit delays (zeros — single-element transmits) |
 | `tracks/track_0/scan/transmit_origins` | `(256, 3)` | float32 | m | Firing-element position per Tx |
-| `probe/probe_geometry` | `(256, 3)` | float32 | m | Ring element coordinates (x, y, z=0), 60 mm radius |
+| `probe/probe_geometry` | `(256, 3)` | float32 | m | Ring element coordinates `(x, y=0, z)` in the XZ plane, 60 mm radius |
 | `tracks/track_0/data/sos_map/values` | `(1, 230, 230)` | float32 | m/s | Ground-truth SOS map |
-| `tracks/track_0/data/sos_map/coordinates` | `(230, 230, 3)` | float32 | m | Per-pixel `[x, y, z]` (dx = 0.30 mm, centred on ring) |
+| `tracks/track_0/data/sos_map/coordinates` | `(230, 230, 3)` | float32 | m | Per-pixel `[x, y=0, z]` (dx = 0.30 mm, centred on ring; x=cols, z=rows) |
 | `tracks/track_0/data/attenuation_map/values` | `(1, 230, 230)` | float32 | dB/m/Hz | Ground-truth attenuation coefficient α₀ |
 | `tracks/track_0/data/attenuation_map/gamma` | scalar | float32 | – | Power-law exponent γ (1.01; α(f)=α₀·fᵞ) |
-| `custom/tissue`, `custom/z_slice` | scalar | str / int | – | Tissue class and phantom z-slice index |
+| `metadata/annotations` | – | str | – | `anatomy="breast"`, `label="dense"`/`"fatty"` |
+| `custom/z_slice` | scalar | int | – | Phantom z-slice index |
 
 Attenuation is stored in the zea base unit **dB/m/Hz** (`1 dB/cm/MHz = 1e-4
 dB/m/Hz`); the `sos_map`/`attenuation_map` `coordinates` carry the physical grid
@@ -170,16 +172,17 @@ dB/m/Hz`); the `sos_map`/`attenuation_map` `coordinates` carry the physical grid
 | `tracks/track_0/scan/tx_apodizations` | `(64, 256)` | float32 | – | Stride-4 selection: transmit event *k* fires element `4k` |
 | `tracks/track_0/scan/t0_delays` | `(64, 256)` | float32 | s | Transmit delays (zeros — single-element transmits) |
 | `tracks/track_0/scan/transmit_origins` | `(64, 3)` | float32 | m | Firing-element position per Tx |
-| `probe/probe_geometry` | `(256, 3)` | float32 | m | PURE-calibrated ring positions (x, y, z=0), 110.9 mm radius |
+| `probe/probe_geometry` | `(256, 3)` | float32 | m | PURE-calibrated ring positions `(x, y=0, z)` in the XZ plane, 110.9 mm radius |
 | `probe/element_width`, `probe/element_height` | scalar | float32 | m | 0.558 mm × 19 mm focused element |
-| `tracks/track_0/data/sos_map/values` | `(1, 800, 800)` | float32 | m/s | Ground-truth SOS slice (sim-grid XY plane at the ring) |
-| `tracks/track_0/data/sos_map/coordinates` | `(800, 800, 3)` | float32 | m | Per-pixel `[x, y, z]` (dx = 0.29 mm, centred on ring) |
+| `tracks/track_0/data/sos_map/values` | `(1, 800, 800)` | float32 | m/s | Ground-truth SOS slice (sim-grid in-plane cross-section at the ring) |
+| `tracks/track_0/data/sos_map/coordinates` | `(800, 800, 3)` | float32 | m | Per-pixel `[x, y=0, z]` (dx = 0.29 mm, centred on ring; x=cols, z=rows) |
 | `tracks/track_0/data/attenuation_map/values` | `(1, 800, 800)` | float32 | dB/m/Hz | Ground-truth attenuation coefficient α₀ |
 | `tracks/track_0/data/attenuation_map/gamma` | scalar | float32 | – | Power-law exponent γ (1.01) |
+| `metadata/annotations` | – | str | – | `anatomy="breast"` (no dense/fatty label for the 3D set) |
 | `custom/z_off`, `custom/phantom_z_idx`, `custom/element_focus` | scalar | int / float | – / m | Ring z-offset, phantom z-slice index, element focus (0.075 m) |
 
-(Unlike the 2D-sim set, no `tissue` label is stored.) Attenuation is in the zea
-base unit **dB/m/Hz**; the map `coordinates` carry the physical grid.
+Attenuation is in the zea base unit **dB/m/Hz**; the map `coordinates` carry the
+physical grid (XZ plane, y = 0).
 
 ## Subject Metadata
 
@@ -193,28 +196,27 @@ Not applicable — all data are synthetic. Aggregate phantom statistics:
 
 ## Data Validation
 
-A reference reconstruction is provided for each set, expressed as a `zea.Pipeline`
-whose single stage is a **custom registered `zea.ops.Operation`** (ring USCT
-reflectivity is not a stock linear/phased B-mode pipeline, so a custom op is used
-instead of the built-in beamformer; zea supports this via the `@ops_registry`
-decorator). To reload a pipeline, import its module first so the op is registered.
+A single reference reconstruction, [`reconstruct.py`](reconstruct.py), serves
+**both** sub-datasets. It builds a `zea.Pipeline` whose beamforming stage is
+zea's dedicated `zea.ops.USCTReflectivityDAS` — a round-trip time-of-flight
+Delay-And-Sum that, for every pixel, coherently sums over all transmit/receive
+pairs, rejects the direct through-transmission arrival, and apodizes to keep only
+backscatter geometries. The pipeline is saved to [`pipeline.yaml`](pipeline.yaml).
 
-- **2D-sim** — [`reconstruct.py`](reconstruct.py): op `ring_das_reflectivity`, a
-  round-trip time-of-flight Delay-And-Sum producing full-aperture +
-  90°-partial-aperture reflectivity images. Pipeline: [`pipeline.yaml`](pipeline.yaml);
-  output: [`example_output.png`](example_output.png).
-- **3D-sim** — [`reconstruct_3d.py`](reconstruct_3d.py): op
-  `ring_das_reflectivity_3d`, a fused-Triton round-trip DAS (transmission
-  rejection + backscatter apodization) over the 64-element transmit subset.
-  Pipeline: [`pipeline_3d.yaml`](pipeline_3d.yaml); output:
-  [`example_output_3d.png`](example_output_3d.png).
-
-Crucially, each beamformer reads the ring geometry (`probe/probe_geometry`),
+The same code reconstructs the 2D-sim (256 transmits) and 3D-sim (64 transmits)
+files because everything it needs is read **back from the zea file**: element
+positions (`probe/probe_geometry`), the transmit selection (`scan/tx_apodizations`),
 sampling rate (`scan/sampling_frequency`), time-zero (`scan/initial_times`), and
-transmit selection (`scan/tx_apodizations`) **back from the zea file**, so an
-image that spatially aligns with the ground-truth SOS/attenuation maps confirms
-the geometry, time vector, sampling, and transmit parameters were recorded
-correctly.
+the imaging grid (from the ground-truth `coordinates`). The ring is stored in the
+XZ imaging plane, so `zea.File.load_parameters` + `pipeline.prepare_parameters`
+drive the reconstruction directly. A resulting image whose bright skin boundary
+traces the ground-truth contour confirms the geometry, timing, and transmit
+parameters were recorded correctly.
+
+```
+python reconstruct.py --input data/2d/phantom_xxx.hdf5
+python reconstruct.py --input data/3d/phantom_xxx.hdf5
+```
 
 ## Known Issues
 

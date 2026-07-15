@@ -69,13 +69,15 @@ WAVE_RE = re.compile(r"^kWave_phantom_(.+)_zoff([+-]\d+)\.mat$")
 def ring_geometry():
     """Return PURE ring element positions and per-transmit descriptors.
 
-    Matches kwave_simulation3D_phantom_v3.m: x = pos_ele[:,0]-mean,
-    y = pos_ele[:,2]-mean, z = 0 (ring in the x-y plane).
+    Matches kwave_simulation3D_phantom_v3.m in-plane axes: x = pos_ele[:,0]-mean,
+    in-plane vertical = pos_ele[:,2]-mean. The ring lies in the **XZ imaging
+    plane** (zea convention) — that in-plane vertical axis maps to z, and y
+    (elevation) is 0.
     """
     pos = sio.loadmat(str(CALIB_MAT))["pos_ele"]          # (256, 3)
     x = pos[:, 0] - pos[:, 0].mean()
-    y = pos[:, 2] - pos[:, 2].mean()
-    z = np.zeros_like(x)
+    z = pos[:, 2] - pos[:, 2].mean()          # in-plane vertical axis -> z
+    y = np.zeros_like(x)                       # elevation axis (0 for a 2D ring)
     probe_geometry = np.column_stack([x, y, z]).astype(np.float32)
 
     # tx_apodizations: transmit event k fires element TX_ELEMS[k] (stride-4).
@@ -126,8 +128,10 @@ def load_acquisition(item, dtype):
     fs = np.float32(1.0 / (time_vec[1] - time_vec[0]))
 
     gt = sio.loadmat(str(item["gt"]))
-    sos = gt["gt_sos_slice"].astype(np.float32)
-    atten = gt["gt_atten_slice"].astype(np.float32)
+    # Source slices are (Nx, Ny) = (rows=x, cols=y); transpose to (rows, cols) =
+    # (z, x) so the array matches the (x-cols, z-rows) grid map_coordinates writes.
+    sos = gt["gt_sos_slice"].astype(np.float32).T
+    atten = gt["gt_atten_slice"].astype(np.float32).T
     dx = float(np.ravel(gt["dx"])[0])
     extra = {
         "phantom_z_idx": int(np.ravel(gt["phantom_z_idx"])[0]),
@@ -161,12 +165,16 @@ def build_scan(geo, time_vec, fs, c0):
 
 
 def map_coordinates(shape, dx):
-    """Per-pixel `[x, y, z]` positions in metres, centred on the ring (z=0)."""
+    """Per-pixel `[x, y, z]` positions in metres, centred on the ring.
+
+    The map lies in the **XZ imaging plane** (zea convention): x varies along
+    columns, z along rows, and y (elevation) is 0.
+    """
     H, W = shape
     jj, ii = np.meshgrid(np.arange(W), np.arange(H))
-    x = (jj - (W - 1) / 2.0) * dx
-    y = (ii - (H - 1) / 2.0) * dx
-    z = np.zeros_like(x)
+    x = (jj - (W - 1) / 2.0) * dx              # columns -> x
+    z = (ii - (H - 1) / 2.0) * dx              # rows    -> z
+    y = np.zeros_like(x)                        # elevation -> 0
     return np.stack([x, y, z], axis=-1).astype(np.float32)
 
 
@@ -203,7 +211,8 @@ def convert(item, geo, out_dir, dtype, File, CustomElement):
     }
     data = {"raw_data": raw_data, **ground_truth_maps(sos, atten, dx)}
     metadata = {"subject": {"id": f"phantom_{item['pid']}", "type": "phantom"},
-                "credit": CREDIT}
+                "credit": CREDIT,
+                "annotations": {"anatomy": "breast"}}
     custom = [
         CustomElement(name="z_off", data=np.array(extra["z_off"], dtype=np.int32),
                       description="Z-offset of the ring plane (voxels)", unit="-"),

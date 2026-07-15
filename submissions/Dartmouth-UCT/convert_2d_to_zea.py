@@ -49,12 +49,14 @@ DATASETS = {
         "time_dir": SIM_DIR / "dense" / "time_vectors",
         "gt_dir": PHANTOM_ROOT / "dataset_SOS_02_22_npy",
         "tissue": "dense breast",
+        "label": "dense",
     },
     "fatty": {
         "waveform_dir": SIM_DIR / "fatty" / "waveforms_fp16",
         "time_dir": SIM_DIR / "fatty" / "time_vectors",
         "gt_dir": PHANTOM_ROOT / "dataset_SOS_fatty_npy",
         "tissue": "fatty breast",
+        "label": "fatty",
     },
 }
 
@@ -83,10 +85,12 @@ def ring_geometry():
     """Return ring element positions and per-transmit descriptors.
 
     Channel ordering matches process_single_phantom.m: element k corresponds to
-    theta_k = -pi + k * 2*pi/N, placed at radius RING_RADIUS_M in the x-y plane.
+    theta_k = -pi + k * 2*pi/N, placed at radius RING_RADIUS_M. The ring lies in
+    the **XZ imaging plane** (zea convention); y is the elevation axis and is 0
+    for a 2D ring.
 
     Returns dict of arrays:
-        probe_geometry   (N, 3) float32  [m]  (x, y, z=0)
+        probe_geometry   (N, 3) float32  [m]  (x, y=0, z)
         tx_apodizations  (N, N) float32       identity (single-element transmits)
         transmit_origins (N, 3) float32  [m]  transmitting element position
         azimuth_angles   (N,)   float32       0 (not steered)
@@ -95,8 +99,8 @@ def ring_geometry():
     """
     theta = -np.pi + np.arange(N_ELEMENTS) * (2.0 * np.pi / N_ELEMENTS)
     x = RING_RADIUS_M * np.cos(theta)
-    y = RING_RADIUS_M * np.sin(theta)
-    z = np.zeros_like(x)
+    z = RING_RADIUS_M * np.sin(theta)         # in-plane vertical axis -> z
+    y = np.zeros_like(x)                       # elevation axis (0 for a 2D ring)
     probe_geometry = np.column_stack([x, y, z]).astype(np.float32)
 
     geo = {
@@ -181,15 +185,17 @@ def build_scan(geo, time_vec, fs):
 
 
 def map_coordinates(shape, dx):
-    """Per-pixel `[x, y, z]` positions in metres, centred on the ring (z=0).
+    """Per-pixel `[x, y, z]` positions in metres, centred on the ring.
 
-    Returns an array of shape `(*shape, 3)` for a map of `shape = (H, W)`.
+    The map lies in the **XZ imaging plane** (zea convention): x varies along
+    columns, z along rows, and y (elevation) is 0. Returns `(*shape, 3)` for a
+    map of `shape = (H, W)`.
     """
     H, W = shape
     jj, ii = np.meshgrid(np.arange(W), np.arange(H))
-    x = (jj - (W - 1) / 2.0) * dx
-    y = (ii - (H - 1) / 2.0) * dx
-    z = np.zeros_like(x)
+    x = (jj - (W - 1) / 2.0) * dx              # columns -> x
+    z = (ii - (H - 1) / 2.0) * dx              # rows    -> z
+    y = np.zeros_like(x)                        # elevation -> 0
     return np.stack([x, y, z], axis=-1).astype(np.float32)
 
 
@@ -224,11 +230,13 @@ def convert(item, cfg, geo, out_dir, dtype, File, CustomElement):
         "probe_bandwidth_percent": np.float32(FRAC_BW * 100.0),
     }
     data = {"raw_data": raw_data, **ground_truth_maps(sos, atten, GT_DX_M)}
-    metadata = {"subject": {"id": f"phantom_{item['pid']}", "type": "phantom"},
-                "credit": CREDIT}
+    metadata = {
+        "subject": {"id": f"phantom_{item['pid']}", "type": "phantom"},
+        "credit": CREDIT,
+        # Tissue class belongs in the spec's annotations, not a custom element.
+        "annotations": {"anatomy": "breast", "label": cfg["label"]},
+    }
     custom = [
-        CustomElement(name="tissue", data=np.array(cfg["tissue"]),
-                      description="Breast tissue class of the source phantom", unit="-"),
         CustomElement(name="z_slice", data=np.array(int(item["z"]), dtype=np.int32),
                       description="Phantom z-slice index (from the source filename)",
                       unit="-"),
