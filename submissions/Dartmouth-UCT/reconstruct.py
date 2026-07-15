@@ -1,254 +1,251 @@
 # SPDX-License-Identifier: CC-BY-4.0
-"""Reference reconstruction for the 2D ring-array USCT zea sub-dataset.
+"""Reconstruct: DAS reflectivity images of the 2D and 3D ring-array USCT phantoms.
 
-Loads one converted ``.hdf5`` (zea) acquisition and reconstructs a Delay-And-Sum
-(DAS) reflectivity image directly from the raw RF channel data, using the ring
-geometry, sampling rate, and time-zero **read back from the zea file**. This is
-the sanity check requested by the OpenH-RF guide: if the recorded geometry /
-timing are correct, the DAS image is sharp and spatially aligned with the
-ground-truth SOS / attenuation maps stored in the same file.
+Defines a round-trip time-of-flight Delay-And-Sum pipeline in code, saves it
+(together with the reconstruction parameters) to pipeline.yaml, then loads that
+YAML back and runs it on the HDF5 file. Both sub-datasets — the 2D full-ring
+(256 transmits) and the 3D ring (64 transmits) — reconstruct with the same
+pipeline; only the imaging grid differs, and that is read from the file.
 
-The beamformer is a single-acquisition port of ``BatchDualChannelDAS`` from the
-project's training code (``ddpm_das_waveform.py``): a round-trip time-of-flight
-DAS that produces two channels — a full-aperture reflectivity image and a
-90-degree partial-aperture image. It is wrapped as a **custom registered
-``zea.ops.Operation``** (``ring_das_reflectivity``) so the whole reconstruction
-is expressed as a ``zea.Pipeline`` and saved to ``pipeline.yaml``.
+USCT does not fit zea's standard B-mode pipeline: the transmits are individual
+point sources firing in turn, not a wavefront steered from the receive aperture,
+so `zea.ops.Beamform`'s steered-wavefront time-of-flight model does not apply.
+`zea.ops.USCTReflectivityDAS` is the dedicated operation for this geometry — for
+every pixel it coherently sums the analytic channel signal over all
+transmit/receive pairs at the round-trip delay, rejecting the direct
+through-transmission arrival (which dwarfs the backscatter) and apodizing to keep
+only backscatter geometries.
+
+The imaging grid defaults to the footprint and resolution of the ground-truth
+sound-speed map stored in the file, so the reconstruction is directly comparable,
+pixel for pixel, with the ground truth. This is the sanity check the OpenH-RF
+guide asks for: if the recorded geometry and timing are right, the bright skin
+boundary traces the ground-truth contour.
 
 Usage:
-    python reconstruct.py                       # first file in ./data
-    python reconstruct.py data/phantom_xxx.hdf5 # a specific acquisition
-    python reconstruct.py --save-pipeline       # (re)write pipeline.yaml and exit
-
+    python reconstruct.py --input data/2d/phantom_xxx.hdf5
+    python reconstruct.py --input data/3d/phantom_xxx.hdf5 --fov 0.13 --num_pixels 512
 """
 
-import argparse
 import os
+
+os.environ["KERAS_BACKEND"] = "jax"
+
+import argparse
 from pathlib import Path
 
-os.environ.setdefault("KERAS_BACKEND", "torch")  # zea picks a Keras backend at import
-
-import numpy as np
-import torch
-import matplotlib
-matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from zea.ops import (
+    Cast,
+    LogCompress,
+    Normalize,
+    PatchedGrid,
+    ReshapeGrid,
+    USCTReflectivityDAS,
+)
 
 import zea
-from zea import File
-from zea.ops import Operation
-from zea.internal.registry import ops_registry
+from zea import Config, File, Pipeline
 
-HERE = Path(__file__).resolve().parent
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+HERE = Path(__file__).parent
+CONFIG = HERE / "pipeline.yaml"
+
+# The ring lies in the XZ imaging plane, so the reconstruction grid is Cartesian
+# and centred on the ring. `ylims` is pinned to zero: the ring images a single
+# plane, so the grid must stay 2D (left unset, zea would infer an elevation
+# extent from the probe and build a volume).
+PARAMETERS = {
+    "grid_type": "cartesian",
+    "ylims": [0.0, 0.0],
+    "dynamic_range": [-40, 0],
+}
 
 
-# ---------------------------------------------------------------------------
-# DAS reflectivity beamformer (single acquisition; ported from BatchDualChannelDAS)
-# ---------------------------------------------------------------------------
+def build_pipeline() -> Pipeline:
+    """Define the USCT delay-and-sum reflectivity pipeline in code."""
+    return Pipeline(
+        operations=[
+            Cast(dtype="float32"),
+            # Every pixel is independent, so reconstruct the grid in patches to
+            # bound peak memory, then reshape the flat result to an image. The
+            # 5-cycle 1.5 MHz toneburst is ~3.3 us long; a 2.5 us guard (~0.75 of
+            # a pulse) past the direct arrival rejects through-transmission while
+            # keeping backscatter from near the ring.
+            PatchedGrid(
+                operations=[
+                    USCTReflectivityDAS(tx_chunk=4, transmission_guard_s=2.5e-6),
+                ],
+                num_patches=64,
+            ),
+            ReshapeGrid(),
+            Normalize(),
+            LogCompress(),
+        ],
+        # Python-level loops over transmit chunks: not jittable.
+        jit_options=None,
+        # One acquisition at a time: `data` is (n_tx, ...) with no leading frame
+        # axis. The pipeline propagates this to every operation it contains.
+        with_batch_dim=False,
+    )
 
-@torch.no_grad()
-def das_reflectivity(waveform, sensors_xy, dt, t0, *, c0, num_pixels, fov_size,
-                     aperture_deg=90, tx_chunk=32, device="cpu"):
-    """Round-trip TOF Delay-And-Sum over the 2D full-ring array.
 
-    (The 3D set uses a different beamformer — see reconstruct_3d.py.)
+def write_config(pipeline: Pipeline, path: Path) -> None:
+    """Serialize the pipeline and reconstruction parameters to a YAML config file."""
+    config = pipeline.to_config()
+    config["parameters"] = PARAMETERS
+    config.to_yaml(str(path))
 
-    Args:
-        waveform   : (Tx, Time, Rx) float tensor of raw RF channel data.
-        sensors_xy : (n_el, 2) element positions [m] (from the zea file).
-        dt, t0     : sampling interval [s] and time origin [s] (from the file).
-        c0         : assumed background sound speed [m/s].
-        num_pixels : output image is num_pixels x num_pixels.
-        fov_size   : field of view [m] (square, centred on the ring).
 
-    Returns:
-        (2, H, H) float32 tensor: [full-aperture, partial-aperture] reflectivity.
+def check_ring_in_imaging_plane(file: File):
+    """The ring must lie in the XZ imaging plane (y = elevation), as zea expects.
+
+    A ring stored in the XY plane still reconstructs — every element projects onto
+    a line — but yields a meaningless image, and lets zea infer an elevation extent
+    from the ring, turning the grid into a volume that exhausts GPU memory. Both
+    are far easier to understand as an error here.
     """
-    waveform = waveform.to(device)
-    Tx, Time, Rx = waveform.shape
-    H = num_pixels
-    NP = H * H
-
-    # Pixel grid (centred on the ring, matching the GT map convention).
-    grid_1d = torch.linspace(-fov_size / 2, fov_size / 2, H, device=device)
-    py, px = torch.meshgrid(grid_1d, grid_1d, indexing="ij")
-    pixels = torch.stack([px.flatten(), py.flatten()], dim=1)        # (NP, 2)
-
-    sensors = torch.as_tensor(sensors_xy, dtype=torch.float32, device=device)
-    dist = torch.cdist(sensors, pixels)                              # (n_el, NP)
-    idx_base = dist / (c0 * dt)                                      # one-way index
-    t0_idx = t0 / dt
-
-    # Partial-aperture receive mask (rx within +/- aperture_deg/2 of tx).
-    n_valid = int(round(aperture_deg / 360.0 * Tx))
-    half = n_valid // 2
-    rx_mask = torch.zeros(Tx, Tx, dtype=torch.bool, device=device)
-    for tx in range(Tx):
-        for off in range(-half, n_valid - half):
-            rx_mask[tx, (tx + off) % Tx] = True
-
-    wave = waveform.permute(0, 2, 1).contiguous().float()           # (Tx, Rx, Time)
-    das_full = torch.zeros(NP, device=device)
-    das_part = torch.zeros(NP, device=device)
-
-    for tx0 in range(0, Tx, tx_chunk):
-        tx1 = min(tx0 + tx_chunk, Tx)
-        # Round-trip index: tof(tx->pixel) + tof(pixel->rx) - t0.
-        tidx = (idx_base[tx0:tx1].unsqueeze(1)
-                + idx_base.unsqueeze(0) - t0_idx).long()             # (c, Rx, NP)
-        valid = (tidx >= 0) & (tidx < Time)
-        tidx.clamp_(0, Time - 1)
-
-        amps = torch.gather(wave[tx0:tx1], dim=2, index=tidx)        # (c, Rx, NP)
-        amps *= valid
-
-        das_full += amps.sum(0).sum(0)
-        amps *= rx_mask[tx0:tx1].unsqueeze(-1)
-        das_part += amps.sum(0).sum(0)
-
-    # Orientation: element k of the channel data sits at probe_geometry[k]
-    # (theta_0 = -pi), so the natural pixel-grid view already aligns row/col with
-    # the ground-truth maps — no extra flip is needed here. (Equivalent to a
-    # flipud+fliplr of the theta_0 = 0 convention used in the training code.)
-    full_img = das_full.view(H, H)
-    part_img = das_part.view(H, H)
-    return torch.stack([full_img, part_img], 0)
-
-
-# ---------------------------------------------------------------------------
-# Custom zea operation wrapping the DAS (so the pipeline serialises to yaml)
-# ---------------------------------------------------------------------------
-
-@ops_registry("ring_das_reflectivity")
-class RingDAS(Operation):
-    """Round-trip TOF DAS reflectivity for a ring array, as a zea Operation.
-
-    Beamforming parameters (``aperture_deg``, ``tx_chunk``) are serialised to
-    ``pipeline.yaml``; the data-dependent geometry/timing (element positions,
-    dt, t0, c0, grid) are passed at call time from the acquisition itself.
-    """
-
-    def __init__(self, aperture_deg=90, tx_chunk=32, **kwargs):
-        # Defaults suited to a torch round-trip-DAS; serialised values override.
-        kwargs.setdefault("jit_compile", False)
-        kwargs.setdefault("jittable", False)
-        kwargs.setdefault("with_batch_dim", False)
-        super().__init__(**kwargs)
-        self.aperture_deg = aperture_deg
-        self.tx_chunk = tx_chunk
-
-    def call(self, **kwargs):
-        wf = kwargs[self.key]                                        # (Tx, Time, Rx)
-        das = das_reflectivity(
-            wf, kwargs["sensors_xy"], kwargs["dt"], kwargs["t0"],
-            c0=kwargs["c0"], num_pixels=kwargs["num_pixels"],
-            fov_size=kwargs["fov_size"], aperture_deg=self.aperture_deg,
-            tx_chunk=self.tx_chunk, device=str(wf.device),
+    probe_geometry = file.probe.probe_geometry[:]
+    elevation = np.abs(probe_geometry[:, 1]).max()
+    in_plane = np.abs(probe_geometry[:, [0, 2]]).max()
+    if elevation > 0.01 * in_plane:
+        raise ValueError(
+            f"{file.path}: probe_geometry spans {2 * elevation * 1e3:.1f} mm in y "
+            f"(elevation) against {2 * in_plane * 1e3:.1f} mm in-plane, so the ring is "
+            "not in the XZ imaging plane. Run fix_uploaded_files.py (see FEEDBACK.md)."
         )
-        return {self.output_key: das}
 
 
-def build_pipeline(aperture_deg=90):
-    return zea.Pipeline(operations=[
-        RingDAS(aperture_deg=aperture_deg, key="raw_data", output_key="reflectivity"),
-    ])
+def ground_truth(file: File):
+    """Ground-truth maps and their in-plane (x, z) axes, read from the zea file."""
+    coords = file.data.sos_map.coordinates[:]  # (n_z, n_x, 3)
+    return {
+        "sos": file.data.sos_map.values[0],
+        "attenuation": file.data.attenuation_map.values[0],
+        "x": coords[0, :, 0],
+        "z": coords[:, 0, 2],
+    }
 
 
-# ---------------------------------------------------------------------------
-# Load one zea acquisition
-# ---------------------------------------------------------------------------
-
-def load_acquisition(path):
-    """Read raw data + geometry + GT from a converted zea file (via the zea API)."""
-    with File(str(path), "r") as f:
-        raw = np.asarray(f.data.raw_data[:])          # (1, Tx, n_ax, n_el, 1)
-        s = f.scan
-        fs = float(s.sampling_frequency)
-        t0 = float(np.asarray(s.initial_times)[0])
-        c0 = float(s.sound_speed)
-        sensors_xy = np.asarray(f.probe.probe_geometry)[:, :2]   # (n_el, 2) [m]
-
-        sos = np.asarray(f.data.sos_map.values)[0]                # (H, W) m/s
-        atten = np.asarray(f.data.attenuation_map.values)[0]      # (H, W) dB/m/Hz
-        coords = np.asarray(f.data.sos_map.coordinates)           # (H, W, 3)
-        dx = float(coords[0, 1, 0] - coords[0, 0, 0])
-        tissue = ""
-        for ce in f.custom:
-            if ce.name == "tissue":
-                v = np.asarray(ce.data).item()
-                tissue = v.decode() if isinstance(v, bytes) else str(v)
-
-    waveform = raw[0, :, :, :, 0]                     # (Tx, Time, Rx)
-    return dict(waveform=waveform, sensors_xy=sensors_xy, fs=fs, t0=t0, c0=c0,
-                sos=sos, atten=atten, dx=dx, tissue=tissue)
+def ring_radius(file: File):
+    """Radius of the transducer ring [m], from the in-plane element positions."""
+    probe_geometry = file.probe.probe_geometry[:]
+    return float(np.linalg.norm(probe_geometry[:, [0, 2]], axis=-1).mean())
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
+def grid_limits(gt, radius, fov=None, num_pixels=None):
+    """Imaging grid: the ground-truth footprint, clipped to the ring interior.
+
+    The 3D ground-truth maps are wider than the ring (232 mm across a 222 mm ring),
+    so imaging their full footprint would put the transducer ring itself inside the
+    grid, where it reconstructs as a bright ring that dominates the normalization
+    and buries the phantom. A square of half-width `h` has corners at `h*sqrt(2)`,
+    so keeping `h <= 0.9 * radius / sqrt(2)` leaves a 10% margin to the elements.
+    The 2D maps are already well inside their ring, so this leaves them untouched.
+    """
+    half = min(np.abs(gt["x"]).max(), np.abs(gt["z"]).max(), 0.636 * radius)
+    if fov is not None:
+        half = fov / 2
+    if num_pixels is None:
+        # Keep the ground-truth pixel pitch, so the panels stay comparable.
+        num_pixels = int(round(2 * half / (gt["x"][1] - gt["x"][0]))) + 1
+    return {
+        "xlims": [-half, half],
+        "zlims": [-half, half],
+        "grid_size_x": num_pixels,
+        "grid_size_z": num_pixels,
+    }
+
+
+def crop_to_grid(gt, grid):
+    """Crop the ground-truth maps to the imaging grid, for a like-for-like figure."""
+    keep_x = (gt["x"] >= grid["xlims"][0]) & (gt["x"] <= grid["xlims"][1])
+    keep_z = (gt["z"] >= grid["zlims"][0]) & (gt["z"] <= grid["zlims"][1])
+    return {
+        "sos": gt["sos"][np.ix_(keep_z, keep_x)],
+        "attenuation": gt["attenuation"][np.ix_(keep_z, keep_x)],
+        "x": gt["x"][keep_x],
+        "z": gt["z"][keep_z],
+    }
+
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("file", nargs="?", type=Path, default=None,
-                    help="zea .hdf5 acquisition (default: first under ./data)")
-    ap.add_argument("--out", type=Path, default=HERE / "example_output.png")
-    ap.add_argument("--pipeline", type=Path, default=HERE / "pipeline.yaml")
-    ap.add_argument("--aperture-deg", type=int, default=90)
-    ap.add_argument("--save-pipeline", action="store_true",
-                    help="(re)write pipeline.yaml from the zea.Pipeline and exit")
-    args = ap.parse_args()
-
-    if args.save_pipeline:
-        build_pipeline(args.aperture_deg).to_yaml(str(args.pipeline))
-        print(f"Wrote {args.pipeline}")
-        return
-
-    # Load the pipeline from pipeline.yaml (the registered op is resolved by name).
-    if args.pipeline.exists():
-        pipeline = zea.Pipeline.from_config(zea.Config.from_path(str(args.pipeline)))
-    else:
-        pipeline = build_pipeline(args.aperture_deg)
-
-    path = args.file or next((HERE / "data").rglob("phantom_*.hdf5"))
-    print(f"Reconstructing: {path}  (device={DEVICE})")
-
-    acq = load_acquisition(path)
-    H = acq["sos"].shape[0]
-    fov = H * acq["dx"]                               # square FOV [m]
-    print(f"  Tx/Rx={acq['waveform'].shape[0]}  T={acq['waveform'].shape[1]}  "
-          f"fs={acq['fs']/1e6:.3f} MHz  t0={acq['t0']*1e6:.3f} us  c0={acq['c0']:.0f} m/s")
-    print(f"  image {H}x{H}  fov={fov*1e3:.1f} mm")
-
-    # Run the zea pipeline. Data-dependent geometry/timing are passed as kwargs.
-    outputs = pipeline(
-        raw_data=torch.from_numpy(acq["waveform"].astype(np.float32)).to(DEVICE),
-        sensors_xy=acq["sensors_xy"], dt=1.0 / acq["fs"], t0=acq["t0"],
-        c0=acq["c0"], num_pixels=H, fov_size=fov,
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input", type=Path, required=True)
+    parser.add_argument(
+        "--fov",
+        type=float,
+        default=None,
+        help="square field of view [m] (default: the ground-truth map footprint, "
+        "clipped to the ring interior)",
     )
-    das = outputs["reflectivity"].cpu().numpy()
+    parser.add_argument(
+        "--num_pixels",
+        type=int,
+        default=None,
+        help="output image is num_pixels x num_pixels (default: ground-truth resolution)",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="CUDA device ID (e.g. 'cuda:0', 'auto:1', or 'cpu')",
+    )
+    args = parser.parse_args()
 
-    # ---- figure: DAS reflectivity (full + partial) next to the GT maps ----
-    half_mm = fov * 1e3 / 2
-    ext = [-half_mm, half_mm, -half_mm, half_mm]
-    fig, axes = plt.subplots(1, 4, figsize=(20, 5))
+    if not args.input.exists():
+        raise FileNotFoundError(f"{args.input} not found. Run convert_2d_to_zea.py first.")
+    output_path = args.input.with_suffix(".png")
+
+    zea.init_device(device=args.device, verbose=True)
+
+    # Define the pipeline in code, save it (with the reconstruction parameters)
+    # to pipeline.yaml, then load that YAML back in.
+    write_config(build_pipeline(), CONFIG)
+    config = Config.from_path(str(CONFIG))
+
+    # Load file: acquisition parameters (with config overrides) and raw RF data.
+    with File(str(args.input)) as f:
+        check_ring_in_imaging_plane(f)
+        gt = ground_truth(f)
+        grid = grid_limits(gt, ring_radius(f), args.fov, args.num_pixels)
+        gt = crop_to_grid(gt, grid)
+        parameters = f.load_parameters(**config.parameters, **grid)
+        raw = f.data.raw_data[0]  # (n_tx, n_ax, n_el, 1) — RF, one frame
+
+    # Build and run the pipeline loaded from pipeline.yaml.
+    pipeline = Pipeline.from_config(config)
+    inputs = pipeline.prepare_parameters(parameters)
+    outputs = pipeline(data=raw, **inputs, return_numpy=True)
+
+    recon = outputs["data"]  # (grid_z, grid_x) — log-compressed reflectivity
+
+    # The ground-truth maps share the reconstruction's frame, so the reflective
+    # skin boundary should trace the ground-truth contour panel for panel.
+    gt_extent = [gt["x"].min(), gt["x"].max(), gt["z"].max(), gt["z"].min()]
+
+    zea.visualize.set_mpl_style()
+    fig, axes = plt.subplots(1, 3, figsize=(17, 5))
     panels = [
-        (das[0], "DAS reflectivity (full aperture)", "gray"),
-        (das[1], f"DAS reflectivity ({args.aperture_deg} deg partial)", "gray"),
-        (acq["sos"], f"GT sound speed [m/s] ({acq['tissue']})", "viridis"),
-        (acq["atten"], "GT attenuation [dB/cm/MHz]", "magma"),
+        (recon, "DAS reflectivity [dB]", "gray", parameters.extent_imshow),
+        (gt["sos"], "Ground-truth sound speed [m/s]", "viridis", gt_extent),
+        (gt["attenuation"], "Ground-truth attenuation [dB/m/Hz]", "magma", gt_extent),
     ]
-    for ax, (img, title, cmap) in zip(axes, panels):
-        im = ax.imshow(img, cmap=cmap, extent=ext, origin="lower")
-        ax.set_title(title, fontsize=11)
-        ax.set_xlabel("x [mm]"); ax.set_ylabel("y [mm]")
-        plt.colorbar(im, ax=ax, shrink=0.8)
-    fig.suptitle(f"{path.name} — reference DAS reconstruction from zea channel data",
-                 fontsize=13)
+    for ax, (image, title, cmap, extent) in zip(axes, panels):
+        handle = ax.imshow(image, cmap=cmap, extent=extent)
+        ax.set_title(title)
+        ax.set_xlabel("X (m)")
+        ax.set_ylabel("Z (m)")
+        # Tie the colorbar axes to the image axes so it matches the panel height.
+        cax = make_axes_locatable(ax).append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(handle, cax=cax)
+    fig.suptitle(args.input.name)
     fig.tight_layout()
-    fig.savefig(args.out, dpi=110, bbox_inches="tight")
-    print(f"Saved {args.out}")
+    plt.savefig(str(output_path), bbox_inches="tight", dpi=100)
+
+    print(f"Reconstructed  : {recon.shape}")
+    print(f"Saved          : {output_path}")
 
 
 if __name__ == "__main__":
