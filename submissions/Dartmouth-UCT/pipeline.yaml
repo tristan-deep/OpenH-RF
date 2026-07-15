@@ -1,0 +1,19 @@
+# zea.Pipeline for the 2D ring-array USCT reference reconstruction.
+#
+# The single operation `ring_das_reflectivity` is a CUSTOM zea op (round-trip
+# TOF Delay-And-Sum, full + 90-deg partial aperture) defined and registered in
+# reconstruct.py. To load this pipeline you must import that module first so the
+# op is in zea's registry:
+#
+#     import reconstruct                       # registers `ring_das_reflectivity`
+#     pipeline = zea.Pipeline.from_config(zea.Config.from_path("pipeline.yaml"))
+#
+# Acquisition geometry/timing (element positions, dt, t0, c0, grid) are read
+# from the zea file at call time; only the op's free params live here.
+# Regenerate with:  python reconstruct.py --save-pipeline
+pipeline:
+    operations:
+    -   name: ring_das_reflectivity
+        params:
+            key: raw_data
+            output_key: reflectivity
