@@ -25,6 +25,8 @@ Usage:
   python scripts/download_submission.py --team TEAM --overwrite
   python scripts/download_submission.py --team TEAM --sample
   python scripts/download_submission.py --team TEAM --subfolder SUBFOLDER
+  python scripts/download_submission.py --team TEAM --file NAME.hdf5
+  python scripts/download_submission.py --team TEAM --file SUBFOLDER/NAME.hdf5
 """
 
 from __future__ import annotations
@@ -235,6 +237,62 @@ def resolve_subfolder(service, folder_id: str, subfolder_path: str) -> tuple[str
     return name, folder_id
 
 
+def find_file(
+    service,
+    folder_id: str,
+    filename: str,
+    rel_path: str = "",
+    include_trashed: bool = False,
+) -> tuple[dict, str] | None:
+    """Recursively search under ``folder_id`` for a file named ``filename``.
+
+    Matches case-insensitively and returns the first match found (depth-first),
+    paired with its path relative to the search root.
+    """
+    for item in list_children(service, folder_id, include_trashed=include_trashed):
+        name = item["name"]
+        item_rel_path = f"{rel_path}/{name}" if rel_path else name
+        if item["mimeType"] == FOLDER_MIME:
+            found = find_file(service, item["id"], filename, item_rel_path, include_trashed)
+            if found is not None:
+                return found
+        elif name.lower() == filename.lower():
+            return item, item_rel_path
+    return None
+
+
+def resolve_file(
+    service, folder_id: str, file_path: str, include_trashed: bool = False
+) -> tuple[dict, str]:
+    """Resolve ``--file`` (a bare filename or a ``SUBFOLDER/NAME`` path) to an item.
+
+    A bare filename is searched for recursively under ``folder_id``. A path
+    with a directory component is resolved directly (no search) by walking
+    down to that subfolder and matching the filename among its direct children.
+    """
+    file_path = file_path.strip("/")
+    parent_path, sep, filename = file_path.rpartition("/")
+
+    if not sep:
+        found = find_file(service, folder_id, filename, include_trashed=include_trashed)
+        if found is None:
+            print(f"No file named '{filename}' found anywhere in this submission.", file=sys.stderr)
+            sys.exit(1)
+        return found
+
+    _, parent_folder_id = resolve_subfolder(service, folder_id, parent_path)
+    for item in list_children(service, parent_folder_id, include_trashed=include_trashed):
+        if item["mimeType"] != FOLDER_MIME and item["name"].lower() == filename.lower():
+            return item, file_path
+
+    print(f"No file named '{filename}' found in '{parent_path}'.", file=sys.stderr)
+    print("Available files at this level:", file=sys.stderr)
+    for item in list_children(service, parent_folder_id, include_trashed=include_trashed):
+        if item["mimeType"] != FOLDER_MIME:
+            print(f"  - {item['name']}", file=sys.stderr)
+    sys.exit(1)
+
+
 def choose_team(service, requested: str | None) -> tuple[str, str]:
     subfolders = list_subfolders(service, ROOT_FOLDER_ID)
     if not subfolders:
@@ -374,6 +432,15 @@ def main() -> None:
             "submissions/<team>/<subfolder> instead of the whole submission."
         ),
     )
+    sample_or_subfolder.add_argument(
+        "--file",
+        help=(
+            "Only download this one specific file, saved to its normal path "
+            "under submissions/<team>/. Give a bare filename (e.g. 'sample.h5') "
+            "to search the whole submission for it, or a path with a subfolder "
+            "(e.g. 'validation/sample.h5') to look it up directly without searching."
+        ),
+    )
     parser.add_argument(
         "--include-trashed",
         action="store_true",
@@ -404,6 +471,20 @@ def main() -> None:
     if args.subfolder:
         _, folder_id = resolve_subfolder(service, folder_id, args.subfolder)
         dest_dir = dest_dir / args.subfolder.strip("/")
+
+    if args.file:
+        item, item_rel_path = resolve_file(
+            service, folder_id, args.file, include_trashed=args.include_trashed
+        )
+        dest_path = dest_dir / item_rel_path
+        print(f"Downloading '{team_name}/{item_rel_path}' into {dest_path}")
+        if not args.overwrite and _up_to_date(dest_path, item.get("size")):
+            print(f"  up to date, skipping: {item_rel_path}")
+        else:
+            print(f"  downloading: {item_rel_path}")
+            download_file(service, item["id"], item["mimeType"], dest_path)
+        print("Done.")
+        return
 
     print(f"Downloading '{team_name}' into {dest_dir}" + (" (sample mode)" if args.sample else ""))
     download_folder(
