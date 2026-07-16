@@ -18,7 +18,7 @@ pipeline:
             - 1.0
     - log_compress
     with_batch_dim: false
-    jit_options: null
+    jit_options: pipeline
 parameters:
     grid_type: cartesian
     ylims:

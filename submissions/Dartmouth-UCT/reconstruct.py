@@ -92,7 +92,7 @@ def build_pipeline() -> Pipeline:
             LogCompress(),
         ],
         # Python-level loops over transmit chunks: not jittable.
-        jit_options=None,
+        jit_options="pipeline",
         # One acquisition at a time: `data` is (n_tx, ...) with no leading frame
         # axis. The pipeline propagates this to every operation it contains.
         with_batch_dim=False,
