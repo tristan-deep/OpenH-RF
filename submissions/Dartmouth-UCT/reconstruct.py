@@ -22,14 +22,22 @@ pixel for pixel, with the ground truth. This is the sanity check the OpenH-RF
 guide asks for: if the recorded geometry and timing are right, the bright skin
 boundary traces the ground-truth contour.
 
+By default the delays assume the file's constant `sound_speed`. With --sos_map,
+the ground-truth sound-speed map is fed to the same operation, which replaces the
+constant-c delays with a straight-ray integral of the local slowness — the
+best-case delay model, since it uses the true medium.
+
 Usage:
     python reconstruct.py --input data/2d/phantom_xxx.hdf5
+    python reconstruct.py --input data/2d/phantom_xxx.hdf5 --sos_map
     python reconstruct.py --input data/3d/phantom_xxx.hdf5 --fov 0.13 --num_pixels 512
 """
 
 import os
 
-os.environ["KERAS_BACKEND"] = "jax"
+# zea picks a Keras backend at import; default to torch (this project's env) but
+# honour an explicit KERAS_BACKEND (e.g. export KERAS_BACKEND=jax) if set.
+os.environ.setdefault("KERAS_BACKEND", "jax")
 
 import argparse
 from pathlib import Path
@@ -187,6 +195,12 @@ def main():
         help="output image is num_pixels x num_pixels (default: ground-truth resolution)",
     )
     parser.add_argument(
+        "--sos_map",
+        action="store_true",
+        help="use the ground-truth sound-speed map for straight-ray corrected "
+        "delays (default: the file's constant sound_speed)",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default=None,
@@ -196,7 +210,8 @@ def main():
 
     if not args.input.exists():
         raise FileNotFoundError(f"{args.input} not found. Run convert_2d_to_zea.py first.")
-    output_path = args.input.with_suffix(".png")
+    suffix = "_sos.png" if args.sos_map else ".png"
+    output_path = args.input.with_name(args.input.stem + suffix)
 
     zea.init_device(device=args.device, verbose=True)
 
@@ -208,15 +223,28 @@ def main():
     # Load file: acquisition parameters (with config overrides) and raw RF data.
     with File(str(args.input)) as f:
         check_ring_in_imaging_plane(f)
-        gt = ground_truth(f)
-        grid = grid_limits(gt, ring_radius(f), args.fov, args.num_pixels)
-        gt = crop_to_grid(gt, grid)
+        gt_full = ground_truth(f)
+        grid = grid_limits(gt_full, ring_radius(f), args.fov, args.num_pixels)
+        gt = crop_to_grid(gt_full, grid)
         parameters = f.load_parameters(**config.parameters, **grid)
         raw = f.data.raw_data[0]  # (n_tx, n_ax, n_el, 1) — RF, one frame
 
+    # SoS-corrected delays: pass the ground-truth map (uncropped, so rays that
+    # leave the imaging grid still see the phantom) as call-time data. This is
+    # a runtime input, not a pipeline parameter, so pipeline.yaml is unchanged.
+    sos_inputs = {}
+    if args.sos_map:
+        sos_inputs = {
+            "sos_map": gt_full["sos"].astype(np.float32),
+            "sos_grid_x": gt_full["x"].astype(np.float32),
+            "sos_grid_z": gt_full["z"].astype(np.float32),
+        }
+
     # Build and run the pipeline loaded from pipeline.yaml.
     pipeline = Pipeline.from_config(config)
-    inputs = pipeline.prepare_parameters(parameters)
+    inputs = pipeline.prepare_parameters(parameters, **sos_inputs)
+
+    zea.log.info("Running pipeline on RF data...")
     outputs = pipeline(data=raw, **inputs, return_numpy=True)
 
     recon = outputs["data"]  # (grid_z, grid_x) — log-compressed reflectivity
@@ -227,8 +255,9 @@ def main():
 
     zea.visualize.set_mpl_style()
     fig, axes = plt.subplots(1, 3, figsize=(17, 5))
+    recon_title = "DAS reflectivity [dB]" + (" (SoS-corrected)" if args.sos_map else "")
     panels = [
-        (recon, "DAS reflectivity [dB]", "gray", parameters.extent_imshow),
+        (recon, recon_title, "gray", parameters.extent_imshow),
         (gt["sos"], "Ground-truth sound speed [m/s]", "viridis", gt_extent),
         (gt["attenuation"], "Ground-truth attenuation [dB/m/Hz]", "magma", gt_extent),
     ]
