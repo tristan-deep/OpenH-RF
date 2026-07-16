@@ -5,7 +5,9 @@ pipeline:
             dtype: float32
     -   name: patched_grid
         operations:
-        - usct_reflectivity_das
+        -   name: usct_reflectivity_das
+            params:
+                compounding: coherent
         params:
             with_batch_dim: false
             jit_options: null

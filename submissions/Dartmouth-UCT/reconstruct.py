@@ -5,7 +5,8 @@ Defines a round-trip time-of-flight Delay-And-Sum pipeline in code, saves it
 (together with the reconstruction parameters) to pipeline.yaml, then loads that
 YAML back and runs it on the HDF5 file. Both sub-datasets — the 2D full-ring
 (256 transmits) and the 3D ring (64 transmits) — reconstruct with the same
-pipeline; only the imaging grid differs, and that is read from the file.
+pipeline; the imaging grid is read from the file, and only the compounding
+differs (coherent for 2D, incoherent for 3D — see --compounding).
 
 USCT does not fit zea's standard B-mode pipeline: the transmits are individual
 point sources firing in turn, not a wavefront steered from the receive aperture,
@@ -71,7 +72,7 @@ PARAMETERS = {
 }
 
 
-def build_pipeline() -> Pipeline:
+def build_pipeline(compounding: str = "coherent") -> Pipeline:
     """Define the USCT delay-and-sum reflectivity pipeline in code."""
     return Pipeline(
         operations=[
@@ -83,7 +84,9 @@ def build_pipeline() -> Pipeline:
             # keeping backscatter from near the ring.
             PatchedGrid(
                 operations=[
-                    USCTReflectivityDAS(tx_chunk=4, transmission_guard_s=2.5e-6),
+                    USCTReflectivityDAS(
+                        tx_chunk=4, transmission_guard_s=2.5e-6, compounding=compounding
+                    ),
                 ],
                 num_patches=64,
             ),
@@ -201,6 +204,15 @@ def main():
         "delays (default: the file's constant sound_speed)",
     )
     parser.add_argument(
+        "--compounding",
+        choices=["coherent", "incoherent"],
+        default=None,
+        help="transmit compounding (default: coherent for the 2D set, incoherent "
+        "for the 3D set — its out-of-plane delay errors of ~0.5 periods "
+        "decorrelate the phase between transmits, so coherent summation buries "
+        "the phantom in speckle)",
+    )
+    parser.add_argument(
         "--device",
         type=str,
         default=None,
@@ -215,17 +227,21 @@ def main():
 
     zea.init_device(device=args.device, verbose=True)
 
-    # Define the pipeline in code, save it (with the reconstruction parameters)
-    # to pipeline.yaml, then load that YAML back in.
-    write_config(build_pipeline(), CONFIG)
-    config = Config.from_path(str(CONFIG))
-
     # Load file: acquisition parameters (with config overrides) and raw RF data.
     with File(str(args.input)) as f:
         check_ring_in_imaging_plane(f)
         gt_full = ground_truth(f)
         grid = grid_limits(gt_full, ring_radius(f), args.fov, args.num_pixels)
         gt = crop_to_grid(gt_full, grid)
+        compounding = args.compounding
+        if compounding is None:
+            compounding = "incoherent" if "3D" in f.probe.name else "coherent"
+
+        # Define the pipeline in code, save it (with the reconstruction
+        # parameters) to pipeline.yaml, then load that YAML back in.
+        write_config(build_pipeline(compounding), CONFIG)
+        config = Config.from_path(str(CONFIG))
+
         parameters = f.load_parameters(**config.parameters, **grid)
         raw = f.data.raw_data[0]  # (n_tx, n_ax, n_el, 1) — RF, one frame
 
