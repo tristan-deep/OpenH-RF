@@ -1,0 +1,23 @@
+pipeline:
+    operations:
+    -   name: keras.ops.cast
+        params:
+            dtype: float32
+    - demodulate
+    -   name: beamform
+        params:
+            beamformer: minimum_variance
+            num_patches: 8
+            subarray_size: 32
+            diagonal_loading: 0.01
+    - envelope_detect
+parameters:
+    grid_size_x: 387
+    grid_size_z: 577
+    xlims:
+    - -0.019
+    - 0.019
+    zlims:
+    - 0.002
+    - 0.06
+    apply_lens_correction: false
