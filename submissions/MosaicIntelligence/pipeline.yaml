@@ -1,0 +1,51 @@
+# Shared reconstruction pipeline for every MosaicIntelligence IVUS acquisition.
+#
+# This is a single-element, mechanically-rotated IVUS catheter: each transmit is one
+# radial A-line and there is no aperture, so there is no beamforming. The pipeline turns
+# the raw RF into a polar (theta x rho) B-mode and then scan-converts it to a Cartesian
+# image. Unlike the original submission -- which stopped at the polar B-mode and did the
+# polar->Cartesian step in Python -- the scan conversion is folded in here via the
+# `scan_convert` operation, so the whole reconstruction is defined by the pipeline.
+#
+# scan_convert consumes a per-pixel `coordinates` array supplied at run time by
+# reconstruct.py (it encodes the catheter-centred, ring-inscribed geometry and the
+# display flips). The two ops before it reshape the polar B-mode from the pipeline's
+# (batch, n_theta, n_rho, 1) layout into the (batch, n_rho, n_theta) that scan_convert
+# expects.
+pipeline:
+    operations:
+    -   name: keras.ops.cast
+        params:
+            dtype: float32
+    -   name: band_pass_filter
+        params:
+            passband:
+            - 20000000.0
+            - 50000000.0
+    - demodulate
+    -   name: low_pass_filter
+        params:
+            complex_channels: true
+    -   name: downsample
+        params:
+            factor: 32
+    - envelope_detect
+    -   name: normalize
+        params:
+            output_range:
+            - 0.0
+            - 1.0
+    - log_compress
+    # These ops run per-frame (mapped over the batch axis), so axes refer to the
+    # per-frame (n_theta, n_rho, 1) array, not the batched tensor.
+    -   name: keras.ops.squeeze     # (n_theta, n_rho, 1) -> (n_theta, n_rho)
+        params:
+            axis: -1
+    -   name: keras.ops.transpose   # -> (n_rho, n_theta), the layout scan_convert wants
+        params:
+            axes:
+            - 1
+            - 0
+    -   name: scan_convert          # polar -> Cartesian; coordinates passed in at run time
+        params:
+            order: 1
