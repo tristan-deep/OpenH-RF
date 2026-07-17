@@ -1,0 +1,29 @@
+# Beamforming config for the OpenH-RF eSAF rotational 3D ultrasound sub-dataset.
+#
+# Each acquisition is raw RF channel data (n_ch = 1) from a single normal
+# plane-wave transmit per rotation frame on the JP_Linear_68 linear array
+# (68 elements, 10 MHz, fs 40 MHz, c 1490 m/s). The RF is demodulated before
+# delay-and-sum beamforming; the imaging grid is sized automatically per file
+# from the probe aperture and the recorded axial depth, so the same config
+# works for every acquisition (targets span 20-130 mm).
+#
+# reconstruct.py loads this whole processing chain with zea.Config.from_path
+# and runs it unchanged (single track -> single pipeline.yaml).
+
+parameters:
+  dynamic_range: [-40, 0]
+  apply_lens_correction: false
+
+pipeline:
+  operations:
+    - name: cast
+      params:
+        dtype: float32
+    - name: demodulate
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        num_patches: 200
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress
