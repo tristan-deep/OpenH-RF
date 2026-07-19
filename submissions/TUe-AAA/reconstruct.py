@@ -1,20 +1,19 @@
-"""Reconstruct: beamform the Verasonics plane-wave phantom using DAS.
+"""Reconstruct a B-mode image from the AAA curved-array channel data.
 
-Defines a delay-and-sum beamforming pipeline in code, saves it (together with some
+Defines a delay-and-sum beamforming pipeline in code, saves it (together with the
 beamforming parameters) to pipeline.yaml, then loads that YAML back and runs it on
-the HDF5 file created by convert.py. The resulting B-mode image is saved as a PNG file.
+the zea HDF5 file produced by convert.py. The resulting B-mode image is written to a
+PNG.
+
+The acquisition is an in-vivo abdominal aortic aneurysm (AAA) scan with a Verasonics
+C5-2v curved array in steered diverging-wave mode (15 transmits, +/-12 deg). An
+ApplyWindow op tapers the axial axis so the far end of the record (beyond the useful
+depth) does not leave a bright edge artifact at the bottom of the sector.
 
 Usage:
-    python examples/templates/verasonics/reconstruct.py
-    python examples/templates/verasonics/reconstruct.py --input my_file.hdf5
-    
-    
-runfile(
-    r"reconstruct.py",
-    args="--input AAApatient01_zea.hdf5 --output AAApatient01_bmode.png"
-)
-
-    
+    python reconstruct.py
+    python reconstruct.py --input AAApatient01_zea.hdf5 --output AAApatient01_bmode.png
+    python reconstruct.py --device cuda:0
 """
 
 import os
@@ -26,9 +25,8 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import zea
-from zea import Config, File, Pipeline
 from zea.ops import (
+    ApplyWindow,
     Beamform,
     Cast,
     Demodulate,
@@ -37,24 +35,24 @@ from zea.ops import (
     Normalize,
 )
 
+import zea
+from zea import Config, File, Pipeline
+
 HERE = Path(__file__).parent
-DEFAULT_INPUT = HERE / "verasonics_sample.hdf5"
-DEFAULT_OUTPUT = HERE / "verasonics_bmode.png"
+DEFAULT_INPUT = HERE / "AAApatient01_zea.hdf5"
+DEFAULT_OUTPUT = HERE / "AAApatient01_bmode.png"
 CONFIG = HERE / "pipeline.yaml"
 
 # Custom reconstruction parameters. These are passed to load_parameters and
 # override (or fill in) values read from the HDF5 file.
 PARAMETERS = {
-  
     "grid_size_x": 580,
     "grid_size_z": 600,
     "xlims": [-0.1, 0.1],
     "zlims": [0.0065, 0.18],
-
     "f_number": 1.0,
     "dynamic_range": [-60, 0],
     "apply_lens_correction": True,
- 
 }
 
 
@@ -63,6 +61,7 @@ def build_pipeline() -> Pipeline:
     return Pipeline(
         operations=[
             Cast(dtype="float32"),
+            ApplyWindow(axis=-3, start=16, size=64, end=96, window_type="hanning"),
             Demodulate(),
             Beamform(beamformer="delay_and_sum", num_patches=200),
             EnvelopeDetect(),
@@ -106,28 +105,21 @@ def main():
     with File(str(args.input)) as f:
         parameters = f.load_parameters(**config.parameters)
         raw = f.data.raw_data[0:1]  # (n_frames, n_tx, n_ax, n_el, 1) — RF
-        # raw = f.data.raw_data[:]  # (n_frames, n_tx, n_ax, n_el, 1) — RF
 
     # Build and run the beamforming pipeline loaded from pipeline.yaml
     pipeline = Pipeline.from_config(config)
     inputs = pipeline.prepare_parameters(parameters)
-
-    print('check1')
-
     outputs = pipeline(data=raw, **inputs)
-
-    print('check2')
 
     # Convert the output tensor to a NumPy array and save as PNG
     recon = np.array(outputs["data"])  # (n_frames, grid_z, grid_x)
     image = zea.display.to_8bit(recon[0], dynamic_range=parameters.dynamic_range)
 
-    print('check3')
-
     zea.visualize.set_mpl_style()
+    extent_mm = [v * 1e3 for v in parameters.extent_imshow]  # metres -> mm
     plt.imshow(
         image,
-        extent=parameters.extent_imshow,
+        extent=extent_mm,
         cmap="gray",
     )
     plt.xlabel("X (mm)")

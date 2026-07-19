@@ -1,4 +1,21 @@
-# Dataset Title
+---
+pretty_name: "OpenH-RF — TU/e PULS/e — Abdominal Aortic Aneurysm (C5-2v) channel data"
+license: cc-by-4.0
+task_categories:
+  - image-to-image
+tags:
+  - ultrasound
+  - rf
+  - openh-rf
+  - beamforming
+  - motion-estimation
+  - abdominal-aortic-aneurysm
+  - curved-array
+language:
+  - en
+---
+
+# Abdominal Aortic Aneurysm (AAA) curved-array channel data
 
 ## Dataset Description
 
@@ -7,7 +24,7 @@ This dataset contains ultrasound channel data acquired in vivo from patients wit
 ## Dataset Contributor(s)
 
 PULS/e group
-Department for Biomedical Engineering
+Department of Biomedical Engineering
 Eindhoven University of Technology
 contact: Hans-Martin Schwab (h.schwab@tue.nl)
 
@@ -26,31 +43,30 @@ Motion estimation
 
 ## Dataset Characterization
 
-- **Data collection method:** clinical 
-- **Acquisition system:** Verasonics Vantage, C5-2v, 128 elements, center frequency 3.6 MHz
+- **Data collection method:** clinical
+- **Acquisition system:** Verasonics Vantage, C5-2v curved array, 128 elements, center frequency 3.6 MHz
+- **Transmit sequence:** 15 steered diverging waves (polar angles −12° … +12°)
 
 ## Dataset Format
 
-zea file format. Additional metadata entries: patient->age, patient->sex, patient->BMI
+zea file format. Subject metadata is stored under `metadata/subject` (`age`, `sex`, `bmi`); attribution under `metadata/credit`.
 
 ## Dataset Quantification
 
-- **Samples / frames:** 500 acquisitions_
-- **Total size on disk:** 5.7 GB_
+- **Samples / frames:** 500 acquisitions
+- **Total size on disk:** 5.7 GB
 
 | Field | Shape | dtype | Units | Description |
 |---|---|---|---|---|
-| `raw_data` | `(N_frames, N_tx, N_ax, N_el, 1)` | float32 | — | Raw RF channel data |
-| `image.values` | `(N_frames, H, W, 1)` | uint8 | — | Pre-computed B-mode |
+| `raw_data` | `(N_frames, N_tx, N_ax, N_el, 1)` | int16 | — | Raw RF channel data |
 
 ## Subject Metadata
 
-Patients are dominantely male, aged 63-90 and scanned in the Netherlands
-
+Patients are dominantly male, aged 63–90, and scanned in the Netherlands.
 
 ## Data Validation
 
-A `zea.Pipeline` (DAS → envelope detection → normalization → log compression) is defined in `pipeline.yaml`. Run `reconstruct.py` to reproduce the reference B-mode image.
+A `zea.Pipeline` (cast → axial window → demodulate → DAS beamforming → envelope detection → normalization → log compression) is defined in `pipeline.yaml`. Run `reconstruct.py` to reproduce the reference B-mode image (`AAApatient01_bmode.png`).
 
 ## Known Issues
 
