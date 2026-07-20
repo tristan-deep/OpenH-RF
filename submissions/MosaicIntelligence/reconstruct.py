@@ -198,8 +198,8 @@ def main():
         "--size",
         type=int,
         default=OUTPUT_PX,
-        help="Reconstruction side length in pixels (square). "
-        "Default: derived from the segmentation mask dimensions.",
+        help="Override the reconstruction to a square canvas of this side length (px). "
+        "Default: reconstruct on the stored image/segmentation grid.",
     )
     parser.add_argument(
         "--alpha",
@@ -249,30 +249,27 @@ def main():
     print(f"Mirror (from rotation metadata): {mirror}")
     print(f"n_frames        : {n_frames}, selected frames: {frames}")
 
-    # Reconstruction side length: square, derived from the segmentation mask unless overridden.
+    # Reconstruct onto the exact grid the stored image/segmentation use, so the overlay lines
+    # up pixel-for-pixel. --size overrides to a square canvas (e.g. for quick previews).
     if args.size is not None:
-        side = args.size
+        out_h = out_w = args.size
     else:
-        if mask_h != mask_w:
-            print(
-                f"WARNING: segmentation mask is non-square ({mask_h}x{mask_w}); "
-                f"using {max(mask_h, mask_w)} px for the square reconstruction."
-            )
-        side = max(mask_h, mask_w)
+        out_h, out_w = mask_h, mask_w
 
     # Polar grid: one A-line per transmit (theta), n_ax // downsample factor (rho).
     n_theta = int(raw_frames[0].shape[1])
     n_ax = int(raw_frames[0].shape[2])
     factor = next((op.factor for op in pipeline.operations if isinstance(op, Downsample)), 1)
     n_rho = n_ax // factor
-    print(f"reconstruction side: {side} px (mask {mask_h}x{mask_w}), polar grid {n_rho}x{n_theta}")
+    print(f"reconstruction: {out_h}x{out_w} px (mask {mask_h}x{mask_w}), polar {n_rho}x{n_theta}")
 
+    # Full-circle cross-section centred on the catheter, inscribed in the shorter axis.
     coordinates = zea.display.polar_to_cartesian_coordinates(
-        (side, side),
+        (out_h, out_w),
         n_rho,
         n_theta,
-        tip=(side / 2, side / 2),
-        r_max=side / 2,
+        tip=(out_w / 2, out_h / 2),
+        r_max=min(out_h, out_w) / 2,
         theta_range=(-np.pi, np.pi),
     )
 
@@ -289,9 +286,9 @@ def main():
             dynamic_range=tuple(args.dynamic_range),
         )
         if mask.shape[:2] != recon_gray.shape[:2]:
-            print(
-                f"WARNING: mask {mask.shape[:2]} and reconstruction "
-                f"{recon_gray.shape[:2]} differ in size; overlay assumes matching framing."
+            raise ValueError(
+                f"segmentation mask {mask.shape[:2]} and reconstruction "
+                f"{recon_gray.shape[:2]} disagree; they must share one grid for the overlay."
             )
         panels.append((frame, recon_gray, mask))
 

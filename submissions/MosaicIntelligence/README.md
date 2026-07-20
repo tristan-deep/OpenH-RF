@@ -227,8 +227,6 @@ A `zea.Pipeline` reconstructs the IVUS B-mode from the raw channel data
 
 ## Known Issues
 
-- The image/mask grid is non-square for some acquisitions (e.g. `985 x 986` for
-  `15_10_18_21`); reconstruction squares this to `max(H, W)`.
 - Untracked (`15_*`) acquisitions have no `pullback_position`, so the pullback
   trajectory panel is omitted during reconstruction.
 
