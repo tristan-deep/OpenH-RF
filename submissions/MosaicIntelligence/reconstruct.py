@@ -19,11 +19,11 @@ from pathlib import Path
 os.environ.setdefault("KERAS_BACKEND", "jax")
 
 import keras
+import matplotlib
 import numpy as np
-import zea
 from zea.ops import Downsample
 
-import matplotlib
+import zea
 
 matplotlib.use("Agg")
 
@@ -58,7 +58,9 @@ def select_frames(n_frames, explicit, num_frames):
     return sorted(set(np.linspace(0, n_frames - 1, num).astype(int).tolist()))
 
 
-def reconstruct_frame(pipeline, parameters, raw_frame, coordinates, mirror, bandwidth, dynamic_range):
+def reconstruct_frame(
+    pipeline, parameters, raw_frame, coordinates, mirror, bandwidth, dynamic_range
+):
     """Run the pipeline (RF -> Cartesian B-mode) on one frame and return the 8-bit image.
 
     ``scan_convert`` in the pipeline produces the Cartesian image with the catheter centred;
@@ -217,7 +219,6 @@ def main():
     pipeline = zea.Pipeline.from_path(str(args.pipeline))
     print(f"Pipeline: {pipeline}")
 
-
     with zea.File(str(args.input)) as f:
         parameters = f.load_parameters()
         n_frames = int(f.data.raw_data.shape[0])
@@ -226,7 +227,10 @@ def main():
         raw_frames = [np.asarray(f.data.raw_data[fr : fr + 1]) for fr in frames]
         masks = [np.asarray(f.data.segmentation.values[fr]).astype(bool) for fr in frames]
         labels = list(f.data.segmentation.labels.asstr()[:])
-        mask_h, mask_w = int(f.data.segmentation.values.shape[1]), int(f.data.segmentation.values.shape[2])
+        mask_h, mask_w = (
+            int(f.data.segmentation.values.shape[1]),
+            int(f.data.segmentation.values.shape[2]),
+        )
 
         # Pullback trajectory (optional: absent when the dataset has no tracking data).
         try:
@@ -292,7 +296,9 @@ def main():
             )
         panels.append((frame, recon_gray, mask))
 
-    output = args.output or (HERE / "outputs" / args.input.stem / f"overview_{len(frames)}_frames.png")
+    output = args.output or (
+        HERE / "outputs" / args.input.stem / f"overview_{len(frames)}_frames.png"
+    )
     render_overview(panels, frames, labels, position_mm, frame_rate_hz, args.alpha, output)
 
 
