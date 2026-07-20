@@ -1,26 +1,14 @@
-"""Overview of an IVUS pullback: trajectory + reconstructions + segmentation masks.
-
-Shared reconstruction script for *every* MosaicIntelligence acquisition -- point ``--input``
-at any ``<acquisition>.hdf5`` file. The full reconstruction, including the polar->Cartesian
-scan conversion, is defined by ``pipeline.yaml`` (the ``scan_convert`` operation), so this
-script only supplies the acquisition-specific scan-convert geometry and draws the figure.
-
-This is a single-element, mechanically-rotated IVUS catheter: every transmit is one radial
-A-line and there is no aperture, so there is no beamforming. "Reconstruction" is per-A-line
-envelope detection + log compression (giving a polar theta x rho B-mode) followed by scan
-conversion onto a square Cartesian canvas with the catheter at the centre.
-
+"""
 Frames can be chosen two ways:
   * ``--num-frames N``  : N frames spaced evenly across the whole pullback.
   * ``--frames a b c``  : explicit frame indices (takes precedence over --num-frames).
 
 The transducer rotates the opposite way in some acquisitions, mirroring the image across the
-y axis. That direction is not recorded in the file, so pass ``--mirror`` for those (the early
-"15_*" sessions in this submission).
+y axis. This is read from the file's ``metadata/rotation`` section (+1 clockwise,
+-1 counterclockwise) and the flip is applied automatically.
 
 Usage:
     KERAS_BACKEND=jax uv run python reconstruct.py --input path/to/acquisition.hdf5
-    KERAS_BACKEND=jax uv run python reconstruct.py --input path/to/15_10_18_21.hdf5 --mirror
     KERAS_BACKEND=jax uv run python reconstruct.py --input path/to/file.hdf5 --frames 0 50 120
 """
 
@@ -198,11 +186,6 @@ def main():
         help="Explicit frame indices to overlay (overrides --num-frames).",
     )
     parser.add_argument("--output", type=Path, default=None)
-    parser.add_argument(
-        "--mirror",
-        action="store_true",
-        help="Mirror across the y axis (reversed transducer rotation; the '15_*' sessions).",
-    )
     parser.add_argument("--bandwidth", type=float, default=30e6)
     parser.add_argument(
         "--dynamic-range",
@@ -234,8 +217,7 @@ def main():
     pipeline = zea.Pipeline.from_path(str(args.pipeline))
     print(f"Pipeline: {pipeline}")
 
-    # Read what we need with zea.File's dot-indexing, then let the file close before the
-    # compute and rendering below.
+
     with zea.File(str(args.input)) as f:
         parameters = f.load_parameters()
         n_frames = int(f.data.raw_data.shape[0])
@@ -256,6 +238,15 @@ def main():
             print("No pullback_position metadata found; skipping trajectory panel.")
             position_mm, frame_rate_hz = None, 0.0
 
+        # Rotation sense: +1 clockwise, -1 counterclockwise (mirror across y).
+        try:
+            rotation_sign = float(np.squeeze(np.asarray(f["metadata/rotation/samples"][:])))
+            mirror = rotation_sign < 0
+        except KeyError:
+            mirror = False
+            print("No rotation metadata found; defaulting to no mirror.")
+
+    print(f"Mirror (from rotation metadata): {mirror}")
     print(f"n_frames        : {n_frames}, selected frames: {frames}")
 
     # Reconstruction side length: square, derived from the segmentation mask unless overridden.
@@ -276,7 +267,6 @@ def main():
     n_rho = n_ax // factor
     print(f"reconstruction side: {side} px (mask {mask_h}x{mask_w}), polar grid {n_rho}x{n_theta}")
 
-    # Catheter-centred, ring-inscribed scan-convert grid for the pipeline's scan_convert op.
     coordinates = zea.display.polar_to_cartesian_coordinates(
         (side, side),
         n_rho,
@@ -294,7 +284,7 @@ def main():
             parameters,
             raw_frame,
             coordinates,
-            args.mirror,
+            mirror,
             bandwidth=args.bandwidth,
             dynamic_range=tuple(args.dynamic_range),
         )
