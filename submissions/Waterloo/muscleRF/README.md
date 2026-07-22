@@ -46,9 +46,9 @@ D. Xiao, P. De La Torre, M. Saif El Nasr, A. J. Y. Chee, M. Mourtzakis, and A. C
 
 ## Dataset Contributor(s)
 
-Hassan Nahas, Di Xiao, Pat de la Torre, Adrian J.Y. Chee, Marina Mourtzzakis, Alfred C.H. Yu
+Hassan Nahas, Di Xiao, Pat de la Torre, Adrian J.Y. Chee, Marina Mourtzakis, Alfred C.H. Yu
 
-Correspondence emails: 
+Correspondence emails:
 hassan.nahas@uwaterloo.ca
 di.xiao@uwaterloo.ca
 alfred.yu@uwaterloo.ca
@@ -71,7 +71,7 @@ Developing and benchmarking methods for ultrasound image reconstruction and soun
 ## Dataset Characterization
 
 - **Data Collection Method:** In vivo imaging
-- **Labeling Method:** Global speed of sound estimation for each image + Through transmission speed of sound using Olympus probe for calfs.
+- **Labeling Method:** Global speed of sound estimation for each image + Through transmission speed of sound using Olympus probe for calf.
 
 The algorithm for global speed of sound estimation can be found here:
 
@@ -79,12 +79,12 @@ D. Xiao, P. D. l. Torre and A. C. H. Yu, "Real-Time Speed-of-Sound Estimation In
 
 
 - **Acquisition system:**
-Raw RF data was acquired from the US4R-Lite research scanner (US4US, Warsaw, Poland), equipped with an L14-5 linear array. For a subset of acquisitions, a through-transmission SoS estimation was made using a custom setup consisting of two single-element Olympus transducers (C567; Olympus; Tokyo, Japan). 
+Raw RF data was acquired from the US4R-Lite research scanner (US4US, Warsaw, Poland), equipped with an L14-5 linear array. For a subset of acquisitions, a through-transmission SoS estimation was made using a custom setup consisting of two single-element Olympus transducers (C567; Olympus; Tokyo, Japan).
 
 ## Dataset Format
 
 Submitted in the [`zea` file format](https://zea.readthedocs.io/en/v0.1.0a3/data-acquisition.html)
-(one HDF5 file per acquisition). 
+(one HDF5 file per acquisition).
 
 Per-sample contents of the converted HDF5:
 
@@ -96,14 +96,14 @@ Per-sample contents of the converted HDF5:
 | `annotations/anatomy` | `[1]` | str | -- | Muscle in view (e.g. Right Bicep) |
 | `annotations/view` | `[1]` | str | -- | Longitudinal/Cross-sectional |
 | `annotations/label` | `[1]` | str | -- | Label consisting of Muscle + View + Muscle State + Probe Pressure |
-| `custom/Estimated Global Speed of Sound` | `[1]` | float32 | m/s | Estimated global speed of sound |
-| `custom/Through Tx Speed of Sound` | `[1]` | float32 | m/s | Through Tx speed of sound (only available for calf) |
-| `custom/Participant BMI` | `[1]` | float32 | kg/m^2  | Participant's body mass index |
-| `custom/Participant Weight` | `[1]` | float32 |  kg  | Participant's weight |
-| `custom/Baecke: Work Index` | `[1]` | float32 |  /5  | Baecke work activity score |
-| `custom/Baecke: Sport Index` | `[1]` | float32 |  /5  | Baecke sport activity score |
-| `custom/Baecke: Leisure Index` | `[1]` | float32 |  /5  | Baecke leisure activity score |
-| `custom/Baecke Score` | `[1]` | float32 |  /15  | Total baecke score |
+| `custom/estimated_global_speed_of_sound` | `[1]` | float32 | m/s | Estimated global speed of sound |
+| `custom/through_tx_speed_of_sound` | `[1]` | float32 | m/s | Through Tx speed of sound (only available for calf) |
+| `custom/participant_bmi` | `[1]` | float32 | kg/m^2  | Participant's body mass index |
+| `custom/participant_weight` | `[1]` | float32 |  kg  | Participant's weight |
+| `custom/baecke_work_index` | `[1]` | float32 |  /5  | Baecke work activity score |
+| `custom/baecke_sport_index` | `[1]` | float32 |  /5  | Baecke sport activity score |
+| `custom/baecke_leisure_index` | `[1]` | float32 |  /5  | Baecke leisure activity score |
+| `custom/baecke_score` | `[1]` | float32 |  /15  | Total baecke score |
 All `coordinates` arrays are per-pixel Cartesian positions in metres, last axis
 `[x, y, z]` (y = 0 for these 2-D maps).
 
@@ -139,6 +139,8 @@ correctly, and serves as a reproducible reference reconstruction.
 
 ## Known Issues
 - Scan.sound_speed uses default 1540 m/s used for computing tx delays as was done during acquisition. This is different from the estimated global speed of sound which is currently stored as a custom element.
+- Some of the participants here have been recruited for other UWaterloo datasets.
+- The US4R-lite scanner used here is capable of 128 Tx/64 Rx. To fully collect all 128 channels in the L14-5 probe used here, the scanner transmits twice, receiving on the first 64 channels, then the second 64 channels to form a full RF frame. The PRF recorded here is the effective after taking into account this procedure.
 
 ## Ethical Considerations
 
