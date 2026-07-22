@@ -15,29 +15,27 @@ import os
 from pathlib import Path
 
 import matplotlib
-
 matplotlib.use("Agg")  # non-interactive backend
 import matplotlib.pyplot as plt
 import numpy as np
 
 os.environ.setdefault("KERAS_BACKEND", "torch")
 
-from zea.ops import Beamform, Cast, Demodulate, EnvelopeDetect, LogCompress, Normalize
-
 import zea
+from zea.ops import Beamform, Cast, Demodulate, EnvelopeDetect, LogCompress, Normalize
 
 HERE = Path(__file__).parent
 
 # Mapping from track label to the pipeline YAML shipped with this submission.
 PIPELINE_YAMLS = {
     "short imaging pulse": HERE / "pipeline_short_imaging_pulse.yaml",
-    "chirp": HERE / "pipeline_chirp.yaml",
+    "chirp":               HERE / "pipeline_chirp.yaml",
 }
 
 # Frame index used for the reference reconstruction.
 DEFAULT_FRAME = 10
 DEFAULT_XLIMS = (-0.08, 0.08)
-DEFAULT_ZLIMS = (0.06, 0.09)
+DEFAULT_ZLIMS = (0.05, 0.10)
 DEFAULT_GRID_SIZE_Z = 480
 
 
@@ -73,21 +71,15 @@ def main() -> None:
         help="Path to a submission .hdf5 file (default: AcqData_PVoltage80_TVoltage3.4.hdf5)",
     )
     parser.add_argument(
-        "--frame",
-        type=int,
-        default=DEFAULT_FRAME,
+        "--frame", type=int, default=DEFAULT_FRAME,
         help="Frame index to reconstruct (default: %(default)s)",
     )
     parser.add_argument(
-        "--output",
-        type=Path,
-        default=HERE / "reference_bmode.png",
+        "--output", type=Path, default=HERE / "reference_bmode.png",
         help="Output PNG path (default: %(default)s)",
     )
     parser.add_argument(
-        "--output-2x1",
-        type=Path,
-        default=HERE / "reference_mapping.png",
+        "--output-2x1", type=Path, default=HERE / "reference_mapping.png",
         help="Output PNG path for 2x1 paired view (default: %(default)s)",
     )
     args = parser.parse_args()
@@ -95,16 +87,16 @@ def main() -> None:
     input_path = args.input if args.input.is_absolute() else HERE / args.input
     if not input_path.exists():
         raise FileNotFoundError(
-            f"Input file not found: {input_path}. Pass --input with a file inside {HERE}."
+            f"Input file not found: {input_path}. "
+            f"Pass --input with a file inside {HERE}."
         )
 
     zea.init_device()
-    zea.visualize.set_mpl_style()
 
     with zea.File(str(input_path)) as f:
         tracks = list(f.tracks)
         n_tracks = len(tracks)
-        fig, axes = plt.subplots(1, n_tracks, figsize=(6 * n_tracks, 6))
+        fig, axes = plt.subplots(n_tracks, 1, figsize=(6 * n_tracks, 6))
         if n_tracks == 1:
             axes = [axes]
         track_panels = []
@@ -136,7 +128,6 @@ def main() -> None:
             outputs = pipeline(data=raw, **inputs)
 
             import keras
-
             recon = keras.ops.convert_to_numpy(outputs["data"])[0]
             extent_mm = [v * 1e3 for v in params.extent_imshow]
 

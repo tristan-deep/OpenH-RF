@@ -36,7 +36,7 @@ The elevation focus of the transducer is aligned with the optical light sheet, s
 ![Figure 2: Alignment of the acoustical beam and the lightsheet](setup_side.png)
 
 ### Contrast
-Optical scattering was facilitated by hollow glass beads (size distribution). The acoustical scatter was enhanced by adding microbubbles. The microbubble size distribution is shown in Figure 3.
+Optical scattering was facilitated by hollow glass beads (mean particle size: 9-13 micrometer, Manufacturer: Sigma-Aldrich, PubChem Substance ID: 24867590). The acoustical scatter was enhanced by adding in-house produced microbubbles. The microbubble size distribution is shown in Figure 3.
 ![Figure 3: Microbubble size distribution](MB_size_distribution.png)
 
 ### Acquisition parameters
@@ -158,7 +158,7 @@ Reference B-mode image (AcqData_PVoltage80_TVoltage3.4.hdf5, frame 10):
 
 *Left: short imaging pulse track. Right: chirp track. Two horizontal phantom wall
 reflections are visible, with a speckle-filled flow chamber between them. Near-field
-reverberation and grating-lobe artifacts at the bottom are acquisition-induced.*
+reverberation and grating-lobe artifacts at the walls and the cylinder are acquisition-induced.*
 
 Reference mapping between camera and ultrasound image (AcqData_PVoltage80_TVoltage3.4.hdf5, frame 10):
 
