@@ -1,0 +1,31 @@
+pipeline:
+  operations:
+  - name: keras.ops.cast
+    params:
+      dtype: float32
+  - demodulate
+  - name: beamform
+    params:
+      beamformer: delay_and_sum
+      num_patches: 100
+  - envelope_detect
+  - name: normalize
+    params:
+      output_range:
+      - 0.0
+      - 1.0
+  - log_compress
+parameters:
+  # Common shallow reference grid used for every acquisition. The 60m raw data
+  # extend deeper; scripts/generate_bmode_figures.py exports that full PData FOV.
+  grid_size_x: 300
+  grid_size_z: 597
+  xlims:
+  - -0.021965
+  - 0.021965
+  zlims:
+  - 0.0029568189236411113
+  - 0.02498497892364108
+  dynamic_range:
+  - -60
+  - 0
