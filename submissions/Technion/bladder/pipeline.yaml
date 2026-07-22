@@ -1,0 +1,32 @@
+# B-mode beamforming config for the SLT phased-array sector dataset.
+#
+# Single-line-transmit: 180 steered transmits over a +/-45.13 deg sector,
+# per-element IQ (n_ch=2, already demodulated to baseband at 3.44 MHz).
+# Reconstructed scanline-by-scanline on a polar grid (one image line per
+# transmit, receive dynamic focusing), then scan-converted for display.
+# This mirrors the dataset's own beamformer (sltBFTRYIQ.m).
+
+parameters:
+  selected_transmits: all
+  n_ch: 2                       # IQ (baseband) data
+  enable_scanline: true         # one image line per transmit
+  grid_type: polar              # steered rays from a common apex
+  polar_limits: [-0.7876, 0.7876]   # thetaTX min/max, radians (+/-45.13 deg)
+  zlims: [0.0, 0.1608]          # metres: n_ax * c / (2 * fs)
+  grid_size_z: 696              # depth samples per line (== n_ax)
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    # No demodulate: data is already baseband IQ (n_ch=2, demodulated at 3.44 MHz).
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        num_patches: 90
+        enable_aligned_apodization: true   # scanline one-hot transmit mask
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress
+    - name: scan_convert       # polar -> cartesian for display

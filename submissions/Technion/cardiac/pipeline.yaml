@@ -1,0 +1,36 @@
+# B-mode beamforming config for the SLA simulated cardiac sector dataset.
+#
+# Single-line-acquisition: 140 lines over a ~75 deg sector, per-element IQ
+# (n_ch=2, baseband). Reconstructed scanline-by-scanline on a polar grid
+# (one image line per acquisition, receive dynamic focusing), then scan
+# converted for display.
+#
+# NOTE: the axial sample rate and exact focus geometry are NOT stored with
+# this dataset (see convert.py / README). The depth scale is therefore
+# approximate. The authoritative reconstruction target is the paired
+# beamformed_data ("labels") shipped in the file.
+
+parameters:
+  selected_transmits: all
+  n_ch: 2                       # IQ (baseband) data
+  enable_scanline: true         # one image line per acquisition line
+  grid_type: polar
+  polar_limits: [-0.6545, 0.6545]   # +/- 37.5 deg, radians
+  zlims: [0.0, 0.0872]          # metres: n_ax * c / (2 * fs_estimate) — APPROXIMATE
+  grid_size_z: 680
+
+pipeline:
+  operations:
+    - name: keras.ops.cast
+      params:
+        dtype: float32
+    # No demodulate: data is already baseband IQ (n_ch=2).
+    - name: beamform
+      params:
+        beamformer: delay_and_sum
+        num_patches: 70
+        enable_aligned_apodization: true
+    - name: envelope_detect
+    - name: normalize
+    - name: log_compress
+    - name: scan_convert
