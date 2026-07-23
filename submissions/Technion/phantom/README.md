@@ -1,5 +1,5 @@
 ---
-pretty_name: "OpenH-RF — Technion/ISTA Phantom Pre-Beamformed Channel Data"
+pretty_name: "OpenH-RF — Technion Phantom Pre-Beamformed Channel Data"
 license: cc-by-4.0
 task_categories:
   - image-to-image
@@ -28,9 +28,8 @@ beamforming and reconstruction. 12 frames, one acquisition.
 
 ## Dataset Contributor(s)
 
-Sanketh Vedula (Princeton University; Broad Institute; Technion),
-Ortal Senouf (EPFL; Technion), Dean Zadok (Carnegie Mellon University; Technion),
-Alex M. Bronstein (ISTA; Technion — PI). Primary contact: svedula@ist.ac.at.
+Sanketh Vedula, Ortal Senouf, Dean Zadok, Alex M. Bronstein (PI) —
+Technion – Israel Institute of Technology. Primary contact: sanketh@campus.technion.ac.il.
 
 ## Dataset Creation Date
 
@@ -57,8 +56,8 @@ pipeline (point-target resolution, cyst contrast). Phantom tier (×1).
 
 zea file format, a single HDF5 file `data/ph.hdf5`. Source complex samples
 repackaged to `float32` I/Q (`n_ch = 2`), values verbatim. Carries
-`metadata/subject/{id=ph, type=phantom}` and
-`metadata/annotations/{anatomy=phantom, label=phantom}`.
+`metadata/subject/{id=ph, type=phantom}` and `metadata/credit`. ("phantom" is
+recorded only as `subject.type`, not as an anatomy or label.)
 
 ## Dataset Quantification
 
@@ -76,16 +75,20 @@ repackaged to `float32` I/Q (`n_ch = 2`), values verbatim. Carries
 
 ## Subject Metadata
 
-N/A — inanimate phantom (GAMMEX 403GS LE). `annotations.anatomy = phantom`.
+N/A — inanimate phantom (GAMMEX 403GS LE); `subject.type = phantom`.
 
 ## Data Validation
 
-`reconstruct.py` is a faithful port of the dataset's own production beamformer
-`code/processing/IQBF.m` (dynamic-aperture receive delay-and-sum with per-channel
-IQ phase rotation), reading straight from the converted zea file. Reference
-output: `bmode_ph.png` — resolvable point targets and a well-defined anechoic cyst
-at ~65 mm, matching the source collection's reference render (confirms the
-conversion end-to-end). `pipeline.yaml` provides the equivalent `zea.Pipeline`.
+`reconstruct.py` reconstructs a B-mode from `raw_data` using the `zea.Pipeline`
+in `pipeline.yaml` (delay-and-sum on a polar scanline grid → envelope →
+normalization → log compression → sector scan conversion). Run:
+
+```
+python reconstruct.py data/ph.hdf5 --frame 6 --out bmode_ph.png
+```
+
+Reference output: `bmode_ph.png` — resolvable point targets and a well-defined
+anechoic cyst at ~65 mm.
 
 ## Known Issues
 

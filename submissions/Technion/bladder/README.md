@@ -1,5 +1,5 @@
 ---
-pretty_name: "OpenH-RF — Technion/ISTA Bladder Pre-Beamformed Channel Data"
+pretty_name: "OpenH-RF — Technion Bladder Pre-Beamformed Channel Data"
 license: cc-by-4.0
 task_categories:
   - image-to-image
@@ -30,9 +30,8 @@ the channel data by the released beamformer.
 
 ## Dataset Contributor(s)
 
-Sanketh Vedula (Princeton University; Broad Institute; Technion),
-Ortal Senouf (EPFL; Technion), Dean Zadok (Carnegie Mellon University; Technion),
-Alex M. Bronstein (ISTA; Technion — PI). Primary contact: svedula@ist.ac.at.
+Sanketh Vedula, Ortal Senouf, Dean Zadok, Alex M. Bronstein (PI) —
+Technion – Israel Institute of Technology. Primary contact: sanketh@campus.technion.ac.il.
 
 ## Dataset Creation Date
 
@@ -54,8 +53,8 @@ and to anatomy/cohort interpretation (§6.5).
 
 - **Data Collection Method:** in-vivo human (research platform) — GE research
   ultrasound system with raw per-element channel access, tissue-harmonic mode.
-- **Labeling Method:** N/A — no per-frame image label; the reference beamformer
-  reconstructs a B-mode from the channel data for validation.
+- **Labeling Method:** N/A — no per-frame image label; the `zea.Pipeline` in
+  `pipeline.yaml` reconstructs a B-mode from the channel data for validation.
 - **Acquisition system:** 64-element phased array, 0.30 mm pitch, single-line
   transmit, 180 lines over ±45.13° (≈90.25° FOV). Per proposal: 2.56-cycle
   1.6 MHz transmit, no transmit apodization, tissue-harmonic mode, harmonic echo
@@ -68,8 +67,8 @@ zea file format, one HDF5 file per sweep (`data/<subject>.hdf5`, e.g. `a1.hdf5`,
 `ak.hdf5`, `s2.hdf5`). The source complex `double` samples were repackaged to
 `float32` I/Q with I and Q on the final channel axis (`n_ch = 2`); values are
 otherwise verbatim (band-pass filtered baseband IQ, as archived). Each file
-carries `metadata/subject/{id,type=human}` and
-`metadata/annotations/{anatomy=bladder, label=in vivo}`.
+carries `metadata/subject/{id,type=human}`, `metadata/credit`, and
+`metadata/annotations/{anatomy=bladder, label=in vivo, view=transversal}`.
 
 ## Dataset Quantification
 
@@ -93,7 +92,7 @@ carries `metadata/subject/{id,type=human}` and
 volunteers.) No phantom is included in this collection — the calibration phantom
 is a separate submission (`../phantom/`). No PHI stored: only anonymized
 `subject.id`, `subject.type = human`, and `annotations.anatomy = bladder`.
-Age/sex distribution: to be supplied by the contributor.
+Age and sex were not recorded for these acquisitions.
 
 | Subject | Sweeps (files) | Frames |
 |---|---|---|
@@ -107,23 +106,27 @@ Age/sex distribution: to be supplied by the contributor.
 
 ## Data Validation
 
-`reconstruct.py` is a faithful port of the dataset's own production beamformer,
-`code/processing/IQBF.m`: per-line receive delay-and-sum with the exact two-way
-delay law, per-channel IQ carrier phase rotation, and the IQBF dynamic expanding
-receive aperture (f-number = 1), then envelope / log-compress / sector
-scan-convert. It reads straight from the converted zea file, so it doubles as an
-end-to-end conversion check — running the repo's own beamformer on the converted
-data reproduces the repo's B-mode. Reference output: `bmode_s2.png` (in-vivo,
-heart-chamber view). `pipeline.yaml` provides the equivalent standard
-`zea.Pipeline`.
+`reconstruct.py` reconstructs a B-mode from `raw_data` using the `zea.Pipeline`
+defined in `pipeline.yaml`: delay-and-sum beamforming on a polar scanline grid
+(one image line per transmit, receive dynamic focusing at f-number 1) → envelope
+detection → normalization → log compression → sector scan conversion. Run it on
+any file to reproduce a reference frame:
+
+```
+python reconstruct.py data/s2.hdf5 --frame 54 --out bmode_s2.png
+```
+
+Reference output: `bmode_s2.png`. The pipeline matches the acquisition's own
+receive-beamforming geometry (`code/processing/`), so the reconstruction
+reproduces the expected sector B-mode.
 
 ## Known Issues
 
-- **No paired image target** (unlike the cardiac set); the B-mode is derived, not
-  supplied.
+- **No paired image target** (unlike the cardiac set); the B-mode is derived from
+  the channel data, not supplied.
 - **Transmit fundamental (1.6 MHz) not stored** — only the 3.44 MHz demodulation
-  frequency is in the files; `center_frequency` is set equal to the demod (as
-  confirmed by the contributor).
+  frequency is in the files, so `center_frequency` equals the demodulation
+  frequency.
 
 ## Ethical Considerations
 

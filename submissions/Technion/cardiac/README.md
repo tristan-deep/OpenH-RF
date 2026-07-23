@@ -1,5 +1,5 @@
 ---
-pretty_name: "OpenH-RF — Technion/ISTA Cardiac Pre-Beamformed Channel Data"
+pretty_name: "OpenH-RF — Technion Cardiac Pre-Beamformed Channel Data"
 license: cc-by-4.0
 task_categories:
   - image-to-image
@@ -29,9 +29,8 @@ beamforming. 777 frames across 25 cine loops from six subjects (a–f).
 
 ## Dataset Contributor(s)
 
-Sanketh Vedula (Princeton University; Broad Institute; Technion),
-Ortal Senouf (EPFL; Technion), Dean Zadok (Carnegie Mellon University; Technion),
-Alex M. Bronstein (ISTA; Technion — PI). Primary contact: svedula@ist.ac.at.
+Sanketh Vedula, Ortal Senouf, Dean Zadok, Alex M. Bronstein (PI) —
+Technion – Israel Institute of Technology. Primary contact: sanketh@campus.technion.ac.il.
 
 ## Dataset Creation Date
 
@@ -55,8 +54,7 @@ delay-and-sum target. Secondary: motion estimation across the cardiac cine loops
 - **Data Collection Method:** in-vivo human (research platform) — GE experimental
   breadboard system with raw per-element channel access.
 - **Labeling Method:** derived ground truth — the paired `beamformed_data` is the
-  conventional delay-and-sum reconstruction of each frame (reference beamformer
-  released with the dataset).
+  conventional delay-and-sum reconstruction of each frame.
 - **Acquisition system:** 64-element phased array, 0.30 mm pitch, sector scan,
   140 acquisition lines over a ~75° sector (±37.5°); 1.75-cycle 2.5 MHz transmit
   on the 28 central elements, elevation aperture 13 mm, elevation focus 100 mm,
@@ -68,8 +66,8 @@ zea file format, one HDF5 file per cine loop (`data/<subject><clip>.hdf5`, e.g.
 `a1.hdf5` = subject a, clip 1; `f2.hdf5` = patient-set subject f). The source
 complex `int16` samples were repackaged to `float32` I/Q with I and Q on the
 final channel axis (`n_ch = 2`); values are otherwise verbatim. Each file carries
-`metadata/subject/{id,type=human}` and `metadata/annotations/{anatomy=cardiac,
-label=in vivo}`.
+`metadata/subject/{id,type=human}`, `metadata/credit`, and
+`metadata/annotations/{anatomy=cardiac, label=in vivo, view=unknown}`.
 
 ## Dataset Quantification
 
@@ -93,31 +91,34 @@ label=in vivo}`.
 
 Six subjects (a–e main set, f patient set), 777 frames across 25 cine loops.
 In-vivo human; no PHI stored (only `subject.id` a1…f2, `subject.type = human`,
-`anatomy = cardiac`). Age/sex distribution: to be supplied by the contributor.
+`anatomy = cardiac`). Age and sex were not recorded for these acquisitions; the
+echocardiographic view was not logged (`annotations.view = unknown`).
 
 ## Data Validation
 
-The dataset's own reconstruction is the conventional delay-and-sum image produced
-by the repo pipeline (`createDS.m` → `SLA2MLA.m` →
-`do_dynamic_focalization_CREANUIS_new.m`), shipped verbatim in each file as
-`beamformed_data`. `reconstruct.py` therefore renders that **paired DAS target**
-(the authoritative, repo-exact reconstruction), envelope-detected, log-compressed,
-and scan-converted using the stored per-pixel coordinates. Reference output:
-`bmode_a1.png`. `pipeline.yaml` provides the equivalent standard `zea.Pipeline`.
-A classical raw→image beamform is the learning task this paired set is built for;
-its depth scale is approximate because the CREANUIS axial rate is not stored (see
-Known Issues).
+`reconstruct.py` reconstructs a B-mode from `raw_data` using the `zea.Pipeline`
+defined in `pipeline.yaml`: delay-and-sum on a polar scanline grid (one image line
+per acquisition line, receive dynamic focusing) → envelope detection →
+normalization → log compression → sector scan conversion. Run:
+
+```
+python reconstruct.py data/a1.hdf5 --frame 15 --out bmode_a1.png
+```
+
+Reference output: `bmode_a1.png`. Each frame is also paired with its conventional
+delay-and-sum reconstruction in `beamformed_data` (the target for the raw→image
+learning task) — note its depth scale is approximate because the acquisition axial
+rate is not stored (see Known Issues).
 
 ## Known Issues
 
 - **Axial sample rate not stored.** The consolidated source `.mat` files do not
   carry the acquisition header, so `sampling_frequency` (6.0 MHz) is a best
-  estimate and the reconstructed depth scale is approximate. The paired
-  `beamformed_data` target is exact in value but shares this approximate depth
-  axis.
+  estimate and the reconstructed depth scale is approximate. This applies both to
+  the raw→image reconstruction and to the paired `beamformed_data` target (exact
+  in value, approximate in depth axis).
 - **Sector-angle convention.** Lines are stored as ±37.5° centred about
-  boresight; this is physically correct for a phased array and is what the
-  reference beamformer reproduces.
+  boresight, the physically correct convention for a phased array.
 
 ## Ethical Considerations
 

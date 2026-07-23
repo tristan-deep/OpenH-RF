@@ -35,6 +35,10 @@ from zea import File
 from zea.beamform.pixelgrid import polar_pixel_grid
 
 HERE = Path(__file__).parent
+CREDIT = (
+    "Technion – Israel Institute of Technology. "
+    "Contributors: S. Vedula, O. Senouf, D. Zadok, A. Bronstein."
+)
 
 # Best-estimate acquisition geometry (init_params.m + reference beamformer).
 C0 = 1540.0          # m/s          (init_params c0)
@@ -114,7 +118,8 @@ def convert(
     }
 
     probe = {
-        "name": "64-element phased array (0.3 mm pitch)",
+        # No model number available for the GE 64-element phased array; pitch is
+        # implicit in probe_geometry, element_width set below — name left unset.
         "type": "phased",
         "probe_geometry": probe_geometry,
         "element_width": np.float32(0.9 * PITCH),
@@ -124,7 +129,8 @@ def convert(
     sid = subject_id or path.stem.replace("_SLA_preBF", "").replace("CARD", "").lower()
     metadata = {
         "subject": {"id": sid, "type": "human"},
-        "annotations": {"anatomy": anatomy, "label": "in vivo"},
+        "credit": CREDIT,
+        "annotations": {"anatomy": anatomy, "label": "in vivo", "view": "unknown"},
     }
 
     File.create(

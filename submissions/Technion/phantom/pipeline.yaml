@@ -7,6 +7,7 @@
 # This mirrors the dataset's own beamformer (sltBFTRYIQ.m).
 
 parameters:
+  f_number: 0
   selected_transmits: all
   n_ch: 2                       # IQ (baseband) data
   enable_scanline: true         # one image line per transmit

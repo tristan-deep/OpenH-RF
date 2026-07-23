@@ -27,6 +27,10 @@ from scipy.io import loadmat
 from zea import File
 
 HERE = Path(__file__).parent
+CREDIT = (
+    "Technion – Israel Institute of Technology. "
+    "Contributors: S. Vedula, O. Senouf, D. Zadok, A. Bronstein."
+)
 # Element positions used by the dataset's own beamformer (64 el, 0.3 mm pitch).
 ELEM_POS_MAT = (
     HERE / ".." / ".." / "data" / "US_data" / "SLT_preBF_collection"
@@ -83,7 +87,9 @@ def convert(
 
     pitch = float(np.median(np.diff(probe_geometry[:, 0])))
     probe = {
-        "name": "64-element phased array (0.3 mm pitch)",
+        # No model number is available for the GE 64-element phased array; pitch
+        # is implicit in probe_geometry and element_width is set below, so name
+        # is left unset (reserved for the actual transducer model).
         "type": "phased",
         "probe_geometry": probe_geometry,
         "element_width": np.float32(0.9 * pitch),
@@ -91,12 +97,15 @@ def convert(
     }
 
     sid = subject_id or path.stem.replace("_SLT_preBF", "").lower()
-    stype = "phantom" if anatomy == "phantom" else "human"
-    label = "phantom" if anatomy == "phantom" else "in vivo"
-    metadata = {
-        "subject": {"id": sid, "type": stype},
-        "annotations": {"anatomy": anatomy, "label": label},
-    }
+    if anatomy == "phantom":
+        # 'phantom' is a subject.type, not an anatomy/label — no anatomy annotations.
+        metadata = {"subject": {"id": sid, "type": "phantom"}, "credit": CREDIT}
+    else:
+        metadata = {
+            "subject": {"id": sid, "type": "human"},
+            "credit": CREDIT,
+            "annotations": {"anatomy": anatomy, "label": "in vivo", "view": "transversal"},
+        }
 
     File.create(
         str(output_path),
