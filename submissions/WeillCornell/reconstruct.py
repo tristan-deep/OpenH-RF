@@ -31,10 +31,9 @@ from zea import Config, File, Pipeline
 HERE = Path(__file__).resolve().parent
 CONFIG = HERE / "pipeline.yaml"
 DEFAULT_INPUT = HERE / "data" / "ac1_15m_SK.hdf5"
-DEFAULT_OUTPUT = HERE / "figures" / "reference_bmode" / "ac1_15m_SK_pipeline.png"
+DEFAULT_OUTPUT = HERE / "ac1_15m_SK_pipeline.png"
 
-# Common shallow reference grid used for every acquisition. The 60m raw data
-# extend deeper; the per-acquisition QC figures use the original full PData FOV.
+# Common shallow reference grid used for every acquisition.
 PARAMETERS = {
     "grid_size_x": 300,
     "grid_size_z": 597,

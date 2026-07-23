@@ -26,9 +26,8 @@ Nakagami maps, and 20-frame pooled Nakagami references.
 
 ## Contributors
 
-- Shangke Liu, Cornell University and Weill Cornell Medicine
-- Tipu Sultan
-- Jonathan Mamou
+Shangke Liu, Tipu Sultan, Cameron Hoerig, and Jonathan Mamou;
+Biomedical Ultrasound Research Laboratory (BURL), Weill Cornell Medicine.
 
 Contact: Shangke Liu, shl4035@med.cornell.edu
 
@@ -49,12 +48,10 @@ Keep all frames from one acquisition in the same split.
 
 ```text
 data/<scan_id>.hdf5                         self-contained zea acquisitions
-raw_data/phantom_<id>/<scan_id>.mat         original Verasonics workspaces
-figures/bmode/                              per-acquisition B-mode QC
-figures/reference_bmode/                    reference zea reconstruction
 reconstruct.py                              B-mode and QUS example
 pipeline.yaml                               zea reconstruction pipeline
 LICENSE                                     CC BY 4.0 license
+ac1_15m_SK_pipeline.png                     reference zea reconstruction
 ```
 
 Scan IDs use `ac<number>_<phantom>_<operator>`, for example
@@ -117,30 +114,25 @@ Use an OpenH-RF environment with `zea==0.1.3` and a supported Keras backend:
 ```bash
 KERAS_BACKEND=jax python reconstruct.py \
   --input data/ac1_15m_SK.hdf5 \
-  --pipeline pipeline.yaml \
-  --output /tmp/ac1_15m_SK_pipeline.png \
+  --output ac1_15m_SK_pipeline.png \
   --frame 0
 ```
 
-The script saves the B-mode PNG, then prints the selected frame's RF shape,
-BSC band and unit, QUS map shapes, and direct per-frame-to-pooled Nakagami
-errors.
+The script defines the pipeline in code, writes `pipeline.yaml`, saves the
+B-mode PNG, then prints the selected frame's RF shape, BSC band and unit, QUS
+map shapes, and direct per-frame-to-pooled Nakagami errors.
 
 ## Validation
 
 All 120 HDF5 files pass zea 0.1.3 `File.validate()` and
-`File.validate_spec()`. The RF arrays are element-wise identical to the source
-MAT acquisitions after the documented axis mapping. All embedded maps were
-checked for shape, dtype, finite values, coordinates, labels, min/max, and the
-documented frame-broadcast behavior. Files use zea 0.1.3's default
-Blosc/Zstd+bitshuffle compression.
+`File.validate_spec()`. Raw RF and embedded maps were checked for shape, dtype,
+finite values, coordinates, labels, min/max, and the documented frame-broadcast
+behavior. Files use zea 0.1.3's default Blosc/Zstd+bitshuffle compression.
 
-![Reference zea reconstruction of ac1_15m_SK frame 0](figures/reference_bmode/ac1_15m_SK_pipeline.png)
+![Reference zea reconstruction of ac1_15m_SK frame 0](ac1_15m_SK_pipeline.png)
 
 The reference uses frame 0 and the common 597 x 300 zea grid at approximately
-3-25 mm depth. `figures/bmode/` contains visual QC images using the 20-frame
-mean envelope and each workspace's full field of view, so they are not expected
-to be pixel-identical to the single-frame reference reconstruction.
+3-25 mm depth.
 
 ## Limitations
 
@@ -160,5 +152,3 @@ to be pixel-identical to the single-frame reference reconstruction.
 CC BY 4.0. See `LICENSE`. Commercial and non-commercial reuse is permitted
 with attribution. The contributors confirm that these phantom data are cleared
 for release under CC BY 4.0.
-
-Dataset package prepared on 07/20/2026.
