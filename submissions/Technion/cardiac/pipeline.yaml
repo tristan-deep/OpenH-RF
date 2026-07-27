@@ -1,4 +1,4 @@
-# B-mode beamforming config for the SLA simulated cardiac sector dataset.
+# B-mode beamforming config for the in-vivo cardiac sector dataset.
 #
 # Single-line-acquisition: 140 lines over a ~75 deg sector, per-element IQ
 # (n_ch=2, baseband). Reconstructed scanline-by-scanline on a polar grid

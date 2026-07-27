@@ -22,7 +22,8 @@ size_categories:
 
 Real, **in-vivo human** pre-beamformed ultrasound **channel data** for bladder
 imaging: per-element I/Q recorded before receive beamforming on a 64-element
-phased array, single-line transmit, 180 steered lines over a ~90° sector. 1,508
+phased array — a sector scan of 180 transmit beams steered over ±45.13° (≈90°),
+one image line per transmit (steering angles in `scan.polar_angles`). 1,508
 frames across 14 sweeps from seven subjects. Acquired on a GE research system in
 tissue-harmonic mode; the harmonic echo is demodulated to I/Q at 3.44 MHz and
 band-pass filtered. No paired image is supplied — the B-mode is reproduced from
@@ -51,15 +52,17 @@ and to anatomy/cohort interpretation (§6.5).
 
 ## Dataset Characterization
 
-- **Data Collection Method:** in-vivo human (research platform) — GE research
-  ultrasound system with raw per-element channel access, tissue-harmonic mode.
+- **Data Collection Method:** in-vivo human (research platform) — GE Vivid S70
+  scanner with raw per-element channel access, tissue-harmonic mode.
 - **Labeling Method:** N/A — no per-frame image label; the `zea.Pipeline` in
   `pipeline.yaml` reconstructs a B-mode from the channel data for validation.
-- **Acquisition system:** 64-element phased array, 0.30 mm pitch, single-line
-  transmit, 180 lines over ±45.13° (≈90.25° FOV). Per proposal: 2.56-cycle
-  1.6 MHz transmit, no transmit apodization, tissue-harmonic mode, harmonic echo
-  demodulated to I/Q at 3.44 MHz and filtered, ~18 fps; transversal plane with
-  slow longitudinal probe sweep to decorrelate frames.
+- **Acquisition system:** GE Vivid S70 scanner; GE 3Sc-RS 64-element phased-array
+  probe, 0.30 mm pitch; sector scan, 180 transmit beams steered over ±45.13°
+  (≈90.25° FOV), one image line per transmit.
+  Per proposal: 2.56-cycle 1.6 MHz transmit, no transmit apodization,
+  tissue-harmonic mode, harmonic echo demodulated to I/Q at 3.44 MHz and filtered,
+  ~18 fps; transversal plane with slow longitudinal probe sweep to decorrelate
+  frames.
 
 ## Dataset Format
 
@@ -68,7 +71,9 @@ zea file format, one HDF5 file per sweep (`data/<subject>.hdf5`, e.g. `a1.hdf5`,
 `float32` I/Q with I and Q on the final channel axis (`n_ch = 2`); values are
 otherwise verbatim (band-pass filtered baseband IQ, as archived). Each file
 carries `metadata/subject/{id,type=human}`, `metadata/credit`, and
-`metadata/annotations/{anatomy=bladder, label=in vivo, view=transversal}`.
+`metadata/annotations/{anatomy=bladder, label=in vivo, view=transverse suprapubic
+pelvic ultrasound}`. Probe model (`probe.name = GE 3Sc-RS`) and scanner
+(`us_machine = GE Vivid S70`) are stored too.
 
 ## Dataset Quantification
 

@@ -31,6 +31,10 @@ CREDIT = (
     "Technion – Israel Institute of Technology. "
     "Contributors: S. Vedula, O. Senouf, D. Zadok, A. Bronstein."
 )
+PROBE_NAME = "GE 3Sc-RS"          # GE 3Sc-RS phased-array probe
+US_MACHINE = "GE Vivid S70"       # ultrasound machine
+ELEMENT_HEIGHT = 13e-3            # m (elevation aperture; init_params Height / proposal "13 mm")
+PHANTOM_MODEL = "Gammex 403GS LE, Gammex Inc., Middleton, WI, USA"
 # Element positions used by the dataset's own beamformer (64 el, 0.3 mm pitch).
 ELEM_POS_MAT = (
     HERE / ".." / ".." / "data" / "US_data" / "SLT_preBF_collection"
@@ -87,12 +91,11 @@ def convert(
 
     pitch = float(np.median(np.diff(probe_geometry[:, 0])))
     probe = {
-        # No model number is available for the GE 64-element phased array; pitch
-        # is implicit in probe_geometry and element_width is set below, so name
-        # is left unset (reserved for the actual transducer model).
+        "name": PROBE_NAME,
         "type": "phased",
         "probe_geometry": probe_geometry,
         "element_width": np.float32(0.9 * pitch),
+        "element_height": np.float32(ELEMENT_HEIGHT),
         "probe_center_frequency": np.float32(fdem),
     }
 
@@ -100,12 +103,27 @@ def convert(
     if anatomy == "phantom":
         # 'phantom' is a subject.type, not an anatomy/label — no anatomy annotations.
         metadata = {"subject": {"id": sid, "type": "phantom"}, "credit": CREDIT}
+        description = (
+            f"Tissue-mimicking phantom ({PHANTOM_MODEL}). Phased-array sector scan: "
+            "180 transmit beams steered over +/-45.13 deg, one image line per "
+            "transmit; per-element IQ before receive beamforming (Technion, 2018)."
+        )
     else:
+        # Bladder: in-vivo human; transverse suprapubic pelvic ultrasound.
         metadata = {
             "subject": {"id": sid, "type": "human"},
             "credit": CREDIT,
-            "annotations": {"anatomy": anatomy, "label": "in vivo", "view": "transversal"},
+            "annotations": {
+                "anatomy": anatomy,
+                "label": "in vivo",
+                "view": "transverse suprapubic pelvic ultrasound",
+            },
         }
+        description = (
+            "Phased-array sector scan: 180 transmit beams steered over "
+            "+/-45.13 deg, one image line per transmit; per-element IQ before "
+            "receive beamforming (Technion, 2018)."
+        )
 
     File.create(
         str(output_path),
@@ -113,10 +131,8 @@ def convert(
         scan=scan,
         probe=probe,
         metadata=metadata,
-        description=(
-            "SLT single-line-transmit phased-array sector scan, per-element IQ "
-            "before receive beamforming (Technion cardiac/bladder study, 2018)."
-        ),
+        us_machine=US_MACHINE,
+        description=description,
         overwrite=True,
     )
     return output_path

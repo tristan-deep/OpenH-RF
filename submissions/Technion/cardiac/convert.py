@@ -8,12 +8,13 @@ Source: SLA_preBF_collection/{SLA_preBF,f_SLA_preBF}/<cine>_SLA_preBF.mat
     labels   (MATLAB 652 x 1 x 140 x F) complex single
              = beamformed image (delay-and-sum target), depth x 1 x lines x frames
 
-Simulated (CREANUIS) cardiac single-line-acquisition phased-array sector scan:
-140 lines over a ~75 deg sector. `samples` is the required pre-BF channel IQ;
-`labels` is the paired delay-and-sum reconstruction, stored as beamformed_data.
+In-vivo cardiac phased-array sector scan: 140 transmit beams steered over a
+~75 deg sector, one image line per transmit. `samples` is the required pre-BF
+channel IQ; `labels` is the paired delay-and-sum reconstruction, stored as
+beamformed_data.
 
 KNOWN ISSUE (documented by the contributors): the consolidated .mat files do not
-carry the CREANUIS acquisition header, so the exact axial sample rate and the
+carry the full acquisition header, so the exact axial sample rate and the
 transmit focus/steering geometry are NOT stored. The scan geometry below is a
 best estimate (init_params.m + the dataset's reference beamformer); the depth
 scale is therefore approximate. The paired `labels` are the authoritative
@@ -39,6 +40,9 @@ CREDIT = (
     "Technion – Israel Institute of Technology. "
     "Contributors: S. Vedula, O. Senouf, D. Zadok, A. Bronstein."
 )
+PROBE_NAME = "GE 3Sc-RS"          # GE 3Sc-RS phased-array probe
+US_MACHINE = "GE Vivid S70"       # ultrasound machine
+ELEMENT_HEIGHT = 13e-3            # m (elevation aperture; init_params Height / proposal "13 mm")
 
 # Best-estimate acquisition geometry (init_params.m + reference beamformer).
 C0 = 1540.0          # m/s          (init_params c0)
@@ -118,11 +122,11 @@ def convert(
     }
 
     probe = {
-        # No model number available for the GE 64-element phased array; pitch is
-        # implicit in probe_geometry, element_width set below — name left unset.
+        "name": PROBE_NAME,
         "type": "phased",
         "probe_geometry": probe_geometry,
         "element_width": np.float32(0.9 * PITCH),
+        "element_height": np.float32(ELEMENT_HEIGHT),
         "probe_center_frequency": np.float32(F0),
     }
 
@@ -130,7 +134,7 @@ def convert(
     metadata = {
         "subject": {"id": sid, "type": "human"},
         "credit": CREDIT,
-        "annotations": {"anatomy": anatomy, "label": "in vivo", "view": "unknown"},
+        "annotations": {"anatomy": anatomy, "label": "in vivo", "view": "apical four-chamber (A4C)"},
     }
 
     File.create(
@@ -139,11 +143,13 @@ def convert(
         scan=scan,
         probe=probe,
         metadata=metadata,
+        us_machine=US_MACHINE,
         description=(
-            "SLA simulated (CREANUIS) cardiac single-line-acquisition sector scan: "
-            "pre-beamformed channel IQ (raw_data) paired with the delay-and-sum "
-            "target (beamformed_data). Axial rate/focus not stored; geometry is "
-            "best-estimate and depth scale approximate."
+            "In-vivo cardiac phased-array sector scan: 140 transmit beams steered "
+            "over +/-37.5 deg, one image line per transmit; pre-beamformed channel "
+            "IQ (raw_data) paired with the delay-and-sum target (beamformed_data). "
+            "Axial rate/focus not stored; geometry is best-estimate and depth scale "
+            "approximate."
         ),
         overwrite=True,
     )

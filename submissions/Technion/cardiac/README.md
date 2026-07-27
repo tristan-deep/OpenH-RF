@@ -22,7 +22,8 @@ size_categories:
 
 Real, **in-vivo human** pre-beamformed ultrasound **channel data** for cardiac
 imaging: per-element I/Q recorded before receive beamforming on a 64-element
-phased array (single-line acquisition, sector scan). Each frame is **paired with
+phased array — a sector scan of 140 transmit beams steered over ±37.5°, one image
+line per transmit (steering angles in `scan.polar_angles`). Each frame is **paired with
 its conventional delay-and-sum reconstruction** (stored as `beamformed_data`),
 making this a ready-made input→target set for learned reconstruction /
 beamforming. 777 frames across 25 cine loops from six subjects (a–f).
@@ -51,14 +52,13 @@ delay-and-sum target. Secondary: motion estimation across the cardiac cine loops
 
 ## Dataset Characterization
 
-- **Data Collection Method:** in-vivo human (research platform) — GE experimental
-  breadboard system with raw per-element channel access.
+- **Data Collection Method:** in-vivo human (research platform) — GE Vivid S70
+  scanner with raw per-element channel access.
 - **Labeling Method:** derived ground truth — the paired `beamformed_data` is the
   conventional delay-and-sum reconstruction of each frame.
-- **Acquisition system:** 64-element phased array, 0.30 mm pitch, sector scan,
-  140 acquisition lines over a ~75° sector (±37.5°); 1.75-cycle 2.5 MHz transmit
-  on the 28 central elements, elevation aperture 13 mm, elevation focus 100 mm,
-  transmit depth focus 71 mm.
+- **Acquisition system:** GE Vivid S70 scanner; GE 3Sc-RS 64-element phased-array
+  probe, 0.30 mm pitch; sector scan, 140 acquisition lines over a ~75° sector
+  (±37.5°); 2.5 MHz transmit; apical four-chamber view (A4C).
 
 ## Dataset Format
 
@@ -67,7 +67,9 @@ zea file format, one HDF5 file per cine loop (`data/<subject><clip>.hdf5`, e.g.
 complex `int16` samples were repackaged to `float32` I/Q with I and Q on the
 final channel axis (`n_ch = 2`); values are otherwise verbatim. Each file carries
 `metadata/subject/{id,type=human}`, `metadata/credit`, and
-`metadata/annotations/{anatomy=cardiac, label=in vivo, view=unknown}`.
+`metadata/annotations/{anatomy=cardiac, label=in vivo, view=apical four-chamber (A4C)}`. Probe
+model (`probe.name = GE 3Sc-RS`) and scanner (`us_machine = GE Vivid S70`) are
+stored too.
 
 ## Dataset Quantification
 
@@ -91,8 +93,8 @@ final channel axis (`n_ch = 2`); values are otherwise verbatim. Each file carrie
 
 Six subjects (a–e main set, f patient set), 777 frames across 25 cine loops.
 In-vivo human; no PHI stored (only `subject.id` a1…f2, `subject.type = human`,
-`anatomy = cardiac`). Age and sex were not recorded for these acquisitions; the
-echocardiographic view was not logged (`annotations.view = unknown`).
+`anatomy = cardiac`, `view = apical four-chamber (A4C)`). Age and sex were not recorded for these
+acquisitions.
 
 ## Data Validation
 

@@ -21,8 +21,9 @@ size_categories:
 ## Dataset Description
 
 Pre-beamformed ultrasound **channel data** from a tissue-mimicking phantom,
-acquired on the same 64-element phased array and single-line-transmit sector
-scheme as the in-vivo collection, for **calibration and verification**. Contains
+acquired on the same 64-element phased-array sector scheme as the in-vivo
+collection (180 transmit beams steered over ±45.13°, one image line per
+transmit), for **calibration and verification**. Contains
 resolvable point targets and an anechoic cyst — a clean reference for validating
 beamforming and reconstruction. 12 frames, one acquisition.
 
@@ -46,18 +47,21 @@ pipeline (point-target resolution, cyst contrast). Phantom tier (×1).
 
 ## Dataset Characterization
 
-- **Data Collection Method:** phantom — GAMMEX 403GS LE tissue-mimicking phantom,
-  acquired on the same probe as the in-vivo collection for calibration.
+- **Data Collection Method:** phantom — tissue-mimicking phantom (Gammex 403GS LE,
+  Gammex Inc., Middleton, WI, USA), acquired on the same scanner/probe as the
+  in-vivo collection for calibration.
 - **Labeling Method:** N/A (calibration target; known phantom geometry).
-- **Acquisition system:** 64-element phased array, 0.30 mm pitch, single-line
-  transmit, 180 lines over ±45.13° (≈90.25° FOV), IQ demodulated at 3.44 MHz.
+- **Acquisition system:** GE Vivid S70 scanner; GE 3Sc-RS 64-element phased-array
+  probe, 0.30 mm pitch; sector scan, 180 transmit beams steered over ±45.13°
+  (≈90.25° FOV), one image line per transmit; IQ demodulated at 3.44 MHz.
 
 ## Dataset Format
 
 zea file format, a single HDF5 file `data/ph.hdf5`. Source complex samples
 repackaged to `float32` I/Q (`n_ch = 2`), values verbatim. Carries
-`metadata/subject/{id=ph, type=phantom}` and `metadata/credit`. ("phantom" is
-recorded only as `subject.type`, not as an anatomy or label.)
+`metadata/subject/{id=ph, type=phantom}`, `metadata/credit`, probe model
+(`probe.name = GE 3Sc-RS`) and scanner (`us_machine = GE Vivid S70`). ("phantom"
+is recorded only as `subject.type`, not as an anatomy or label.)
 
 ## Dataset Quantification
 
