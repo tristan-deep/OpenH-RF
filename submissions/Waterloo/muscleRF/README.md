@@ -27,11 +27,11 @@ submission files** are:
 
 | File | Role |
 |------|------|
-| `hdf5/*.hdf5` | Acquisition(s) in [`zea` file format](https://zea.readthedocs.io/en/v0.1.0a3/data-acquisition.html) (one file per acquisition) |
+| `data/*.hdf5` | Acquisition(s) in [`zea` file format](https://zea.readthedocs.io/en/v0.1.0a3/data-acquisition.html) (one file per acquisition) |
 | [`reconstruct.py`](reconstruct.py) | Reference reconstruction → `.png`, driven by a `zea.Pipeline` |
 | [`pipeline.yaml`](pipeline.yaml) | The saved reconstruction pipeline |
 | `README.md` | This data card |
-| [`LICENCE.txt`](LICENCE.txt) | CC BY 4.0 |
+| [`LICENSE`](LICENSE) | CC BY 4.0 |
 
 
 

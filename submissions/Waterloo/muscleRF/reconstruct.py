@@ -7,7 +7,7 @@ directly from the raw channel data. The reconstruction is shown next to the
 stored B-mode as a sanity check on the recorded acquisition parameters.
 
 Usage:
-    python reconstruct.py --input hdf5/Acq_p85_Calf_Left_calf_Inside_Minimal.hdf5 --frame 9
+    python reconstruct.py --input hdf5/Acq_p64_Calf_Left_calf_Inside_Pressure.hdf5 --frame 9
 
 @ LITMUS Research Group, University of Waterloo, 2026.
 """
@@ -36,7 +36,7 @@ import zea
 from zea import File, Pipeline
 
 HERE = Path(__file__).parent
-DEFAULT_INPUT = HERE / "hdf5" / "Acq_p85_Calf_Left_calf_Inside_Minimal.hdf5"
+DEFAULT_INPUT = HERE / "data" / "Acq_p64_Calf_Left_calf_Inside_Pressure.hdf5"
 DEFAULT_PIPELINE = HERE / "pipeline.yaml"
 DEFAULT_OUTPUT = HERE / "reconstruct_output.png"
 

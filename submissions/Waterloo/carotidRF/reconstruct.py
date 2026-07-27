@@ -16,7 +16,7 @@ reproduced below from the LITMUS core Python package
 LITMUS GPU stack.
 
 Usage:
-    python reconstruct.py --input hdf5/Acq0.hdf5 --frame 100
+    python reconstruct.py --input data/Acq0.hdf5 --frame 100
 
 @ LITMUS Research Group, University of Waterloo, 2026.
 """
@@ -47,7 +47,7 @@ import zea
 from zea import Config, File, Pipeline
 
 HERE = Path(__file__).parent
-DEFAULT_INPUT = HERE / "hdf5" / "Acq0.hdf5"
+DEFAULT_INPUT = HERE / "data" / "Acq0.hdf5"
 DEFAULT_PIPELINE = HERE / "pipeline.yaml"
 DEFAULT_OUTPUT = HERE / "reconstruct_output.png"
 
@@ -123,7 +123,7 @@ def main():
     parser.add_argument(
         "--power-threshold",
         type=float,
-        default=58.0,
+        default=55.0,
         help="Power Doppler threshold for masking velocity vectors (dB)",
     )
     args = parser.parse_args()

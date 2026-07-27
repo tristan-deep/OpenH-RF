@@ -31,12 +31,11 @@ This directory follows the OpenH-RF Sub-Dataset Submission Guide. The
 
 | File | Role |
 |------|------|
-| `hdf5/*.hdf5` | Acquisition(s) in [`zea` file format](https://zea.readthedocs.io/en/v0.1.0a3/data-acquisition.html) (one file per acquisition) |
+| `data/*.hdf5` | Acquisition(s) in [`zea` file format](https://zea.readthedocs.io/en/v0.1.0a3/data-acquisition.html) (one file per acquisition) |
 | [`reconstruct.py`](reconstruct.py) | Reference reconstruction → `.png`, driven by a `zea.Pipeline`, with an optional vector-flow overlay |
 | [`pipeline.yaml`](pipeline.yaml) | The saved reconstruction pipeline |
-| [`convert.py`](convert.py) | Provenance: how the raw LITMUS frames were converted to the `zea` HDF5 format (reference only; not runnable from this folder) |
 | [`README.md`](README.md) | This data card |
-| [`LICENCE.txt`](LICENCE.txt) | CC BY 4.0 |
+| [`LICENSE`](LICENSE) | CC BY 4.0 |
 
 
 # Data Card — CarotidRF
@@ -111,15 +110,11 @@ Per-sample contents of the converted HDF5:
 | `data/vector_velocity_x` | `[n_frames, z, x]` (+ `coordinates` `[z, x, 3]`) | float32 | m/s | Lateral component of vector velocity ($v_x$) |
 | `data/vector_velocity_z` | `[n_frames, z, x]` (+ `coordinates` `[z, x, 3]`) | float32 | m/s | Axial component of vector velocity ($v_z$) |
 | `data/power_doppler` | `[n_frames, z, x]` (+ `coordinates` `[z, x, 3]`) | float32 | dB | Power Doppler intensity |
+| `data/color_doppler` | `[n_frames, z, x]` (+ `coordinates` `[z, x, 3]`) | float32 | m/s | Color Doppler map |
 | `scan/*` | -- | -- | -- | Probe geometry, sampling/center/demodulation frequency, t0 delays, sound speed, transmit angles, focus distances, transmit origins, apodizations, PRI... |
 
 All `coordinates` arrays are per-pixel Cartesian positions in meters, last axis
 `[x, y, z]` (y = 0 for 2-D maps).
-
-> **Note on dealiasing:** acquisitions that require it also carry
-> `data/vector_velocity_x_deal` and `data/vector_velocity_z_deal` (dealiased
-> $v_x$/$v_z$). The two example acquisitions shipped here do not require
-> dealiasing and therefore omit those fields.
 
 ## Shipped Example Acquisitions
 
@@ -129,11 +124,13 @@ the full dataset:
 | File | Subject | Anatomy | View | Condition | Frames |
 |---|---|---|---|---|---|
 | `hdf5/Acq0.hdf5` | 1 | Common Carotid Artery | Longitudinal | Baseline | 500 |
-| `hdf5/Acq1.hdf5` | 1 | Common Carotid Artery | Longitudinal | Baseline | 500 |
+| `hdf5/Acq62.hdf5` | 1 | Internal Carotid Artery | Cross-sectional | Baseline | 500 |
 
-Each frame comprises 2 steered plane-wave transmits (`n_tx = 2`), 2048 axial
-samples, and 128 receive channels. The frame count in these examples is truncated
-for demonstration; full acquisitions contain the frame counts described below.
+Each common carotid artery frame comprises 2 steered plane-wave transmits (`n_tx = 2`), 2048 axial
+samples, and 128 receive channels. Each internal carotid artery frame comprises 1 steered plane-wave transmits (`n_tx = 1`), 1536 axial
+samples, and 128 receive channels.
+
+The frame count in these examples is truncated for demonstration; full acquisitions contain the frame counts described below.
 
 ## Dataset Quantification
 
