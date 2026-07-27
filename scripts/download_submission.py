@@ -5,8 +5,11 @@ Prompts for a team name (a subfolder of the shared Drive folder) and downloads
 it into ``submissions/<team name>/``, preserving the folder structure.
 
 Re-running is safe: existing local files are left alone unless the remote
-file's size has changed, and nothing already on disk is ever deleted, so it's
-cheap to re-run after a new file shows up in a team's Drive folder.
+file's size has changed, so it's cheap to re-run after a new file shows up in
+a team's Drive folder. Each download is verified against Drive's reported
+file size; if a transfer errors out or produces a size mismatch, the
+partial/corrupt file is deleted and reported as a failure rather than left
+on disk looking complete.
 
 Setup (one-time):
   1. In Google Cloud Console, enable the "Google Drive API" for a project.
@@ -65,6 +68,10 @@ DEFAULT_TOKEN_PATH = SCRIPT_DIR / ".gdrive_token.json"
 FOLDER_MIME = "application/vnd.google-apps.folder"
 GOOGLE_APPS_PREFIX = "application/vnd.google-apps."
 HDF5_SUFFIXES = {".hdf5", ".h5"}
+
+# Large payload files skipped in --sample mode (the sampled .hdf5/.h5 file is
+# enough to preview a submission; these are just bulk data or archives).
+SAMPLE_SKIP_SUFFIXES = {".zip", ".mat"}
 
 # Google-native files must be exported rather than downloaded directly.
 EXPORT_MIME_MAP = {
@@ -321,7 +328,24 @@ def choose_team(service, requested: str | None) -> tuple[str, str]:
     sys.exit(1)
 
 
-def download_file(service, file_id: str, mime_type: str, dest_path: Path) -> None:
+DOWNLOAD_CHUNK_RETRIES = 5
+
+
+class DownloadError(RuntimeError):
+    """A download finished (or failed) without producing a trustworthy file."""
+
+
+def download_file(
+    service, file_id: str, mime_type: str, dest_path: Path, expected_size: str | None = None
+) -> None:
+    """Download a Drive file, verifying it against Drive's reported size.
+
+    Raises ``DownloadError`` - deleting whatever partial/corrupt bytes were
+    written first - if the transfer errors out or the resulting file size
+    doesn't match what Drive reports, rather than silently leaving a
+    truncated file behind (the previous behavior: a network hiccup mid
+    download could produce a file that looks present but is unreadable).
+    """
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
     if mime_type.startswith(GOOGLE_APPS_PREFIX):
@@ -331,15 +355,33 @@ def download_file(service, file_id: str, mime_type: str, dest_path: Path) -> Non
             return
         dest_path = dest_path.with_suffix(suffix)
         request = service.files().export_media(fileId=file_id, mimeType=export_mime)
+        # Drive doesn't report a size for exported Google-native files.
+        expected_size = None
     else:
         request = service.files().get_media(fileId=file_id, supportsAllDrives=True)
 
-    buffer = io.FileIO(dest_path, "wb")
-    downloader = MediaIoBaseDownload(buffer, request)
-    done = False
-    while not done:
-        _, done = downloader.next_chunk()
-    buffer.close()
+    try:
+        with io.FileIO(dest_path, "wb") as buffer:
+            downloader = MediaIoBaseDownload(buffer, request)
+            done = False
+            while not done:
+                _, done = downloader.next_chunk(num_retries=DOWNLOAD_CHUNK_RETRIES)
+    except Exception as e:
+        dest_path.unlink(missing_ok=True)
+        raise DownloadError(f"download of '{dest_path.name}' failed: {e}") from e
+
+    if expected_size is not None:
+        actual_size = dest_path.stat().st_size
+        try:
+            expected_size_int = int(expected_size)
+        except ValueError:
+            expected_size_int = None
+        if expected_size_int is not None and actual_size != expected_size_int:
+            dest_path.unlink(missing_ok=True)
+            raise DownloadError(
+                f"downloaded size of '{dest_path.name}' ({actual_size} bytes) doesn't match "
+                f"Drive's reported size ({expected_size_int} bytes) - deleted the corrupt file"
+            )
 
 
 def _up_to_date(dest_path: Path, remote_size: str | None) -> bool:
@@ -365,8 +407,11 @@ def download_folder(
     rel_path: str = "",
     include_trashed: bool = False,
     force: bool = False,
-) -> None:
+    failures: list[str] | None = None,
+) -> list[str]:
     dest_dir.mkdir(parents=True, exist_ok=True)
+    if failures is None:
+        failures = []
 
     for item in list_children(service, folder_id, include_trashed=include_trashed):
         name = item["name"]
@@ -384,10 +429,16 @@ def download_folder(
                 item_rel_path,
                 include_trashed=include_trashed,
                 force=force,
+                failures=failures,
             )
             continue
 
-        is_hdf5 = Path(name).suffix.lower() in HDF5_SUFFIXES
+        suffix = Path(name).suffix.lower()
+        if sample and suffix in SAMPLE_SKIP_SUFFIXES:
+            print(f"  skipping (sample mode): {item_rel_path}")
+            continue
+
+        is_hdf5 = suffix in HDF5_SUFFIXES
         if sample and is_hdf5:
             if sample_state["hdf5_downloaded"]:
                 print(f"  skipping (sample mode): {item_rel_path}")
@@ -400,7 +451,13 @@ def download_folder(
             continue
 
         print(f"  downloading: {item_rel_path}")
-        download_file(service, item["id"], item["mimeType"], dest_path)
+        try:
+            download_file(service, item["id"], item["mimeType"], dest_path, item.get("size"))
+        except DownloadError as e:
+            print(f"  FAILED: {item_rel_path}: {e}", file=sys.stderr)
+            failures.append(item_rel_path)
+
+    return failures
 
 
 def main() -> None:
@@ -422,7 +479,10 @@ def main() -> None:
     sample_or_subfolder.add_argument(
         "--sample",
         action="store_true",
-        help="Only download one .hdf5/.h5 file (folder structure is still preserved).",
+        help=(
+            "Only download one .hdf5/.h5 file, and skip large bulk files "
+            "(.zip, .mat); folder structure is still preserved."
+        ),
     )
     sample_or_subfolder.add_argument(
         "--subfolder",
@@ -482,12 +542,16 @@ def main() -> None:
             print(f"  up to date, skipping: {item_rel_path}")
         else:
             print(f"  downloading: {item_rel_path}")
-            download_file(service, item["id"], item["mimeType"], dest_path)
+            try:
+                download_file(service, item["id"], item["mimeType"], dest_path, item.get("size"))
+            except DownloadError as e:
+                print(f"  FAILED: {item_rel_path}: {e}", file=sys.stderr)
+                sys.exit(1)
         print("Done.")
         return
 
     print(f"Downloading '{team_name}' into {dest_dir}" + (" (sample mode)" if args.sample else ""))
-    download_folder(
+    failures = download_folder(
         service,
         folder_id,
         dest_dir,
@@ -496,6 +560,11 @@ def main() -> None:
         include_trashed=args.include_trashed,
         force=args.overwrite,
     )
+    if failures:
+        print(f"Done, but {len(failures)} file(s) failed to download:", file=sys.stderr)
+        for f in failures:
+            print(f"  - {f}", file=sys.stderr)
+        sys.exit(1)
     print("Done.")
 
 
