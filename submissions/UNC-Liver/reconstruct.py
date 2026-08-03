@@ -1,13 +1,13 @@
 """Reconstruct a B-mode image from a fullwave-abdominal-wall zea file using a zea.Pipeline.
 
-The transmit sequence is full synthetic aperture on a curvilinear array, so the
-reconstruction grid is polar: rays emanate from the centre of curvature, which sits
-at ``z = -distance_to_apex`` in the file's coordinate frame (the array apex is at
-``z = 0``).
+Defines the beamforming + scan-conversion pipeline in code, builds the acquisition
+parameters (grid + the probe's fitted radius of curvature), saves both to
+pipeline.yaml, then loads that YAML back and runs it on the HDF5 file. The transmit
+sequence is full synthetic aperture on a curvilinear array, so beamforming happens
+on a polar grid; scan conversion to a physical sector is part of the pipeline itself.
 
 Usage:
     python reconstruct.py sample.hdf5 --out bmode.png
-    python reconstruct.py sample.hdf5 --save-yaml pipeline.yaml
 """
 
 from __future__ import annotations
@@ -18,11 +18,8 @@ from pathlib import Path
 
 os.environ.setdefault("KERAS_BACKEND", "torch")
 
-import keras
 import matplotlib
-import numpy as np
-import zea
-from zea.display import scan_convert_2d
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from zea.ops import (
     Beamform,
     Cast,
@@ -30,43 +27,22 @@ from zea.ops import (
     EnvelopeDetect,
     LogCompress,
     Normalize,
-    Pipeline,
+    ScanConvert,
 )
+from zea.probes import fit_curved_probe_radius
+
+import zea
+from zea import Config, File, Pipeline
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Reconstruction grid, matching the polar grid the dataset's reference
-# beamformed_data was formed on (640 radial x 128 lateral).
-GRID_PARAMETERS = {
-    "grid_type": "polar",
-    "polar_limits": (-0.3, 0.3),
-    "grid_size_z": 640,
-    "grid_size_x": 128,
-    "f_number": 2.0,
-    "dynamic_range": (-60, 0),
-}
+HERE = Path(__file__).parent
+CONFIG = HERE / "pipeline.yaml"
 
 
-def grid_parameters(
-    probe_radius: float, r_min: float = 0.005, n_r: int = 640, dr: float = 1.0405405405405406e-04
-) -> dict:
-    """Grid parameters for zea's polar_pixel_grid in the file's coordinate frame.
-
-    ``polar_pixel_grid`` uses ``rlims = (zlims[0], zlims[1] + distance_to_apex)``,
-    so ``zlims[0]`` is a radius from the centre of curvature while ``zlims[1]`` is a
-    depth from ``z = 0``. ``r_min`` is the shallowest depth below the array surface.
-    """
-    r_max = r_min + n_r * dr
-    return {
-        **GRID_PARAMETERS,
-        "distance_to_apex": probe_radius,
-        "zlims": (probe_radius + r_min, r_max),
-    }
-
-
-def build_pipeline() -> zea.Pipeline:
-    """RF channel data -> log-compressed B-mode."""
+def build_pipeline() -> Pipeline:
+    """RF channel data -> log-compressed, scan-converted B-mode sector."""
     return Pipeline(
         [
             Cast(dtype="float32"),
@@ -75,89 +51,122 @@ def build_pipeline() -> zea.Pipeline:
             EnvelopeDetect(),
             Normalize(),
             LogCompress(),
+            ScanConvert(),
         ],
     )
 
 
-def reconstruct(
-    zea_path: Path, pipeline: zea.Pipeline | None = None, frame: int = 0
-) -> tuple[np.ndarray, zea.Parameters]:
-    """Return (bmode_db, parameters) for one frame of a zea file."""
-    zea.init_device()
-    pipeline = pipeline or build_pipeline()
+def build_parameters(
+    probe_radius: float, r_min: float = 0.005, n_r: int = 640, dr: float = 1.0405405405405406e-04
+) -> dict:
+    """Beamforming + scan-conversion parameters for the polar grid the dataset's
+    reference beamformed_data was formed on (640 radial x 128 lateral).
 
-    with zea.File(str(zea_path)) as f:
-        geom = np.asarray(f.probe.probe_geometry)
-        params = f.load_parameters(**grid_parameters(_apex_radius(geom)))
-        raw = f.data.raw_data[:]
-
-    inputs = pipeline.prepare_parameters(params)
-    outputs = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
-    return outputs[pipeline.output_key][frame], params
-
-
-def _apex_radius(geom: np.ndarray) -> float:
-    """Recover the array radius from element positions (apex at z = 0).
-
-    Elements lie on an arc of radius R centred at (0, 0, -R), so
-    ``x^2 + (z + R)^2 = R^2``  =>  ``x^2 + z^2 + 2 R z = 0``. Solved as a
-    least-squares fit over all elements rather than per-element, which is
-    ill-conditioned for the elements nearest the apex (z -> 0).
+    ``polar_pixel_grid`` uses ``rlims = (zlims[0], zlims[1] + distance_to_apex)``,
+    so ``zlims[0]`` is a radius from the centre of curvature while ``zlims[1]`` is a
+    depth from ``z = 0``. ``r_min`` is the shallowest depth below the array surface.
     """
-    x, z = geom[:, 0].astype(np.float64), geom[:, 2].astype(np.float64)
-    return float(-np.sum(z * (x**2 + z**2)) / (2.0 * np.sum(z**2)))
+    return {
+        "grid_type": "polar",
+        "polar_limits": (-0.3, 0.3),
+        "grid_size_z": 640,
+        "grid_size_x": 128,
+        "f_number": 2.0,
+        "dynamic_range": (-60, 0),
+        "fill_value": -60.0,
+        "distance_to_apex": probe_radius,
+        "zlims": (probe_radius + r_min, r_min + n_r * dr),
+    }
+
+
+def write_config(pipeline: Pipeline, parameters: dict, path: Path) -> None:
+    """Serialize the pipeline and acquisition parameters to a YAML config file."""
+    config = pipeline.to_config()
+    config["parameters"] = parameters
+    config.to_yaml(str(path))
+
+
+def scan_convert_map(
+    data, params: zea.Parameters, frame: int = 0, fill_value: float = float("nan")
+):
+    """Scan-convert a single-channel map (e.g. a ground-truth material map) onto the
+    same sector as the B-mode, using the same ``params``."""
+    pipeline = Pipeline([ScanConvert()])
+    inputs = pipeline.prepare_parameters(params)
+    outputs = pipeline(
+        data=data.astype("float32"), **{**inputs, "fill_value": fill_value}, return_numpy=True
+    )
+    return outputs["data"][frame]
 
 
 def main() -> None:
-    """CLI entry point: reconstruct a B-mode and optionally save the pipeline."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("zea_file", type=Path)
     parser.add_argument("--frame", type=int, default=0)
     parser.add_argument("--out", type=Path, default=Path("bmode.png"))
-    parser.add_argument("--save-yaml", type=Path, default=None)
+    parser.add_argument(
+        "--sos-map",
+        action="store_true",
+        help="Also plot the ground-truth sos_map next to the B-mode (2 subplots instead of 1).",
+    )
     args = parser.parse_args()
 
-    pipeline = build_pipeline()
-    bmode, _ = reconstruct(args.zea_file, pipeline=pipeline, frame=args.frame)
+    zea.visualize.set_mpl_style()
+    zea.init_device()
 
-    if args.save_yaml is not None:
-        config = pipeline.to_config()
-        with zea.File(str(args.zea_file)) as f:
-            geom = np.asarray(f.probe.probe_geometry)
-        config["parameters"] = grid_parameters(_apex_radius(geom))
-        config.to_yaml(str(args.save_yaml))
-        print(f"Saved pipeline to {args.save_yaml}")
+    with File(str(args.zea_file)) as f:
+        probe_radius = fit_curved_probe_radius(f.probe.probe_geometry[:])
 
-    with zea.File(str(args.zea_file)) as f:
-        geom = np.asarray(f.probe.probe_geometry)
-    grid = grid_parameters(_apex_radius(geom))
-    radius = grid["distance_to_apex"]
+    # Define the pipeline + parameters in code, save them (together) to pipeline.yaml,
+    # then load that YAML back in -- pipeline.yaml is the single source of truth from
+    # here on.
+    write_config(build_pipeline(), build_parameters(probe_radius), CONFIG)
+    config = Config.from_path(str(CONFIG))
+    pipeline = Pipeline.from_config(config)
 
-    # Scan-convert the polar image into a physical sector. rho is measured from the
-    # centre of curvature, so the displayed depth axis is rho - radius.
-    # rho is measured from the centre of curvature; work in mm so the returned
-    # Cartesian limits come back in mm too.
-    rho_range = ((grid["zlims"][0]) * 1e3, (grid["zlims"][1] + radius) * 1e3)
-    sector, sc = scan_convert_2d(
-        bmode,
-        rho_range=rho_range,
-        theta_range=grid["polar_limits"],
-        fill_value=-60.0,
-        distance_to_apex=0.0,
-    )
-    sector = keras.ops.convert_to_numpy(sector)
-    xlims = [float(v) for v in keras.ops.convert_to_numpy(sc["x_lim"])]
-    zlims = [float(v) for v in keras.ops.convert_to_numpy(sc["z_lim"])]
-    # Shift the depth axis so 0 mm is the array apex rather than the centre of curvature.
-    extent = (xlims[0], xlims[1], zlims[1] - radius * 1e3, zlims[0] - radius * 1e3)
+    with File(str(args.zea_file)) as f:
+        params = f.load_parameters(**config.parameters)
+        raw = f.data.raw_data[:]
 
-    fig, ax = plt.subplots(figsize=(6.5, 7))
-    im = ax.imshow(sector, cmap="gray", vmin=-60, vmax=0, extent=extent)
-    ax.set_title(f"Fullwave abdominal wall B-mode (DAS), frame {args.frame}")
-    ax.set_xlabel("Lateral position [mm]")
-    ax.set_ylabel("Depth [mm]")
-    ax.set_aspect("equal")
-    fig.colorbar(im, ax=ax, label="dB")
+    inputs = pipeline.prepare_parameters(params)
+    outputs = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
+    bmode = outputs[pipeline.output_key][args.frame]
+    extent = params.extent_imshow * 1e3
+
+    if args.sos_map:
+        with File(str(args.zea_file)) as f:
+            sos = f.data.sos_map.values[:]
+        sos_sector = scan_convert_map(sos, params, frame=args.frame)
+        sos_cmap = matplotlib.colormaps["viridis"].copy()
+        sos_cmap.set_bad("black")
+
+        fig, (ax_bmode, ax_sos) = plt.subplots(1, 2, figsize=(12, 7))
+
+        im_bmode = ax_bmode.imshow(bmode, cmap="gray", vmin=-60, vmax=0, extent=extent)
+        ax_bmode.set_aspect("equal")
+        ax_bmode.set_title(f"B-mode (DAS), frame {args.frame}")
+        ax_bmode.set_xlabel("Lateral position [mm]")
+        ax_bmode.set_ylabel("Depth [mm]")
+        cax_bmode = make_axes_locatable(ax_bmode).append_axes("right", size="5%", pad=0.08)
+        fig.colorbar(im_bmode, cax=cax_bmode, label="dB")
+
+        im_sos = ax_sos.imshow(sos_sector, cmap=sos_cmap, extent=extent)
+        ax_sos.set_aspect("equal")
+        ax_sos.set_title("Ground-truth speed of sound")
+        ax_sos.set_xlabel("Lateral position [mm]")
+        ax_sos.set_ylabel("Depth [mm]")
+        cax_sos = make_axes_locatable(ax_sos).append_axes("right", size="5%", pad=0.08)
+        fig.colorbar(im_sos, cax=cax_sos, label="m/s")
+    else:
+        fig, ax = plt.subplots(figsize=(6.5, 7))
+        im = ax.imshow(bmode, cmap="gray", vmin=-60, vmax=0, extent=extent)
+        ax.set_aspect("equal")
+        ax.set_title(f"Fullwave abdominal wall B-mode (DAS), frame {args.frame}")
+        ax.set_xlabel("Lateral position [mm]")
+        ax.set_ylabel("Depth [mm]")
+        cax = make_axes_locatable(ax).append_axes("right", size="5%", pad=0.08)
+        fig.colorbar(im, cax=cax, label="dB")
+
     fig.tight_layout()
     fig.savefig(args.out, dpi=150, bbox_inches="tight")
     print(f"Saved reconstruction to {args.out}")

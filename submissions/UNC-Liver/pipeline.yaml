@@ -12,6 +12,7 @@ pipeline:
             - 0.0
             - 1.0
     - log_compress
+    - scan_convert
 parameters:
     grid_type: polar
     polar_limits:
@@ -23,6 +24,7 @@ parameters:
     dynamic_range:
     - -60
     - 0
+    fill_value: -60.0
     distance_to_apex: 0.04981544503779494
     zlims:
     - 0.05481544503779494
