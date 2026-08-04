@@ -1,8 +1,7 @@
 """Reconstruct a B-mode image from a fullwave-abdominal-wall zea file using a zea.Pipeline.
 
 Defines the beamforming + scan-conversion pipeline in code, builds the acquisition
-parameters (grid + the probe's fitted radius of curvature), saves both to
-pipeline.yaml, then loads that YAML back and runs it on the HDF5 file. The transmit
+parameters, saves both to pipeline.yaml, then loads that YAML back and runs it on the HDF5 file. The transmit
 sequence is full synthetic aperture on a curvilinear array, so beamforming happens
 on a polar grid; scan conversion to a physical sector is part of the pipeline itself.
 
@@ -16,7 +15,7 @@ import argparse
 import os
 from pathlib import Path
 
-os.environ.setdefault("KERAS_BACKEND", "torch")
+os.environ.setdefault("KERAS_BACKEND", "jax")
 
 import matplotlib
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -29,7 +28,6 @@ from zea.ops import (
     Normalize,
     ScanConvert,
 )
-from zea.probes import fit_curved_probe_radius
 
 import zea
 from zea import Config, File, Pipeline
@@ -57,14 +55,12 @@ def build_pipeline() -> Pipeline:
 
 
 def build_parameters(
-    probe_radius: float, r_min: float = 0.005, n_r: int = 640, dr: float = 1.0405405405405406e-04
+    r_min: float = 0.005, n_r: int = 640, dr: float = 1.0405405405405406e-04
 ) -> dict:
     """Beamforming + scan-conversion parameters for the polar grid the dataset's
-    reference beamformed_data was formed on (640 radial x 128 lateral).
-
-    ``polar_pixel_grid`` uses ``rlims = (zlims[0], zlims[1] + distance_to_apex)``,
-    so ``zlims[0]`` is a radius from the centre of curvature while ``zlims[1]`` is a
-    depth from ``z = 0``. ``r_min`` is the shallowest depth below the array surface.
+    reference beamformed_data was formed on (640 radial x 128 lateral). ``zlims`` are
+    depths below the array surface; ``distance_to_apex`` is left unset, so zea fits it
+    from the probe's curvature.
     """
     return {
         "grid_type": "polar",
@@ -74,8 +70,7 @@ def build_parameters(
         "f_number": 2.0,
         "dynamic_range": (-60, 0),
         "fill_value": -60.0,
-        "distance_to_apex": probe_radius,
-        "zlims": (probe_radius + r_min, r_min + n_r * dr),
+        "zlims": (r_min, r_min + n_r * dr),
     }
 
 
@@ -114,13 +109,10 @@ def main() -> None:
     zea.visualize.set_mpl_style()
     zea.init_device()
 
-    with File(str(args.zea_file)) as f:
-        probe_radius = fit_curved_probe_radius(f.probe.probe_geometry[:])
-
     # Define the pipeline + parameters in code, save them (together) to pipeline.yaml,
     # then load that YAML back in -- pipeline.yaml is the single source of truth from
     # here on.
-    write_config(build_pipeline(), build_parameters(probe_radius), CONFIG)
+    write_config(build_pipeline(), build_parameters(), CONFIG)
     config = Config.from_path(str(CONFIG))
     pipeline = Pipeline.from_config(config)
 
