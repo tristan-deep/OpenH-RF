@@ -5,42 +5,22 @@
 **Reviewer:** Claude (automated)
 **Source:** Google Drive `UNC-OpenPros` (folder `1_DwlOou-F-dqDAcqQfk7gda02oFl9fi0`)
 
-> **Scope caveat — read this first.** The submission's binary files
-> (`openpros_sample.hdf5`, 21.5 MB; `InversionNet_weights_only.pth`, 81.9 MB)
-> could not be transferred into the evaluation environment. Three routes were
-> tried and all are closed: `drive.google.com` and
-> `drive.usercontent.google.com` are blocked by the network egress policy; the
-> Drive API rejects unauthenticated media downloads (`403`, missing API key);
-> and the Google Drive connector caps downloads at **10 MB**, which both files
-> exceed. The five Python files and the reference PNG are under that cap and
-> were recovered in full.
+> **Evaluated against the real artifacts.** All three binaries were retrieved and
+> opened: `openpros_sample.hdf5` (21,495,808 B), `InversionNet_weights_only.pth`
+> (81,896,155 B), and `old_openpros_sample.hdf5` (25,163,685 B) for comparison.
+> `reconstruct.py` was run **unmodified** on the real file with the real
+> checkpoint and reproduces the contributor's own `pred_sos.png`. Nothing in this
+> report is inferred from code where the file itself could be checked.
 >
-> **In particular, the delivered `openpros_sample.hdf5` was never opened.**
-> Whether round-1 feedback is integrated *in the uploaded file* — as opposed to
-> in the `convert.py` that would produce it — is therefore **not** established
-> by this report. Note the Drive timestamps: `convert.py` was last modified
-> 2026-08-24, and `openpros_sample.hdf5` 2026-08-25, so the sample post-dates
-> the revised script and is *probably* current. `old_openpros_sample.hdf5`
-> (2026-07-14, owned by a different account) appears to be the pre-fix file.
-> This needs confirming against the actual bytes.
->
-> To evaluate anyway, `convert.py` was run **unmodified** against synthetic
-> source arrays of exactly the shapes it expects, producing a zea file that is
-> **structurally identical** to the delivered one (only the payload values
-> differ), and `reconstruct.py` was run **unmodified** against that file with a
-> randomly-initialised InversionNet standing in for the checkpoint.
->
-> Consequently every finding below about **structure, shapes, dtypes, units and
-> geometry** is directly verified, while findings about the **delivered file's
-> actual contents** (payload values, the real checkpoint, the `zea_version` the
-> delivered file was written with) are inferred from the code that produced it.
-> Re-run this report against the real HDF5 before final sign-off.
+> One environment note that is itself a finding: the delivered file is
+> **blosc-compressed** and cannot be read by the repo's pinned environment
+> without `hdf5plugin` installed. See finding 1.2.
 
 ## Executive scorecard
 
 | # | Category | Result |
 |---|---|---|
-| 1 | Format compliance | ✅ PASS |
+| 1 | Format compliance | ❌ FAIL (unreadable in the pinned env — OpenH-RF-side fix) |
 | 2 | Reconstruction & image quality | ✅ PASS |
 | 3 | Metadata sufficiency | ❌ FAIL |
 | 4 | Data card | ❌ FAIL |
@@ -67,6 +47,17 @@ group: supply the accepted proposal, or confirm this was an invited contribution
 with no proposal on file.** Until then, alignment, under-delivery, and any
 negotiated carve-outs are unverified, and the findings below may double-jeopardy
 the contributor on something already agreed.
+
+## Action items for OpenH-RF (not the contributor)
+
+1. **Add `hdf5plugin` to `pyproject.toml`.** The delivered file is
+   blosc-compressed (zea 0.1.5 default) and is unreadable on a stock `uv sync`
+   checkout, including by the submission's own `reconstruct.py`. This will hit
+   every blosc-era submission, not just this one.
+2. **Raise the blosc/`hdf5plugin` dependency upstream in zea**, or make the read
+   path fail with a message that names the missing plugin rather than
+   `can't open directory (/usr/local/hdf5/lib/plugin)`.
+3. **Supply the accepted proposal** for OpenPros, or confirm it was invited.
 
 ## Feedback for the contributor
 
@@ -119,41 +110,67 @@ the check.
 ## Per-dimension findings (detail for reviewers)
 
 ### 1. Format compliance
-**Status:** pass_with_notes
-**Severity:** minor
+**Status:** fail
+**Severity:** major
 
 **Findings:**
-- `validate_zea_spec.py` reports `compliant: true` with zero errors against zea
-  0.1.2 (both `File.validate()` and `File.validate_spec()` pass).
-- `/data/raw_data` present and non-empty — the OpenH-RF hard requirement is met.
-- Shape `(1, 20, 1000, 322, 1)` matches the spec order
+- **1.1** — The delivered file is spec-compliant. `validate_zea_spec.py` on
+  `openpros_sample.hdf5` reports `compliant: true`, zero errors (both
+  `File.validate()` and `File.validate_spec()` pass). `/data/raw_data` present and
+  non-empty; shape `(1, 20, 1000, 322, 1)` matches
   `(n_frames, n_tx, n_ax, n_el, n_ch)`; dtype `float32`; `n_ch = 1` (real RF),
-  consistent with `demodulation_frequency = 0.0`.
-- Written as a multi-track file (`tracks/track_0/…`) — permitted; the validator
-  settles this.
-- Units are correct throughout: Hz, m, m/s.
-- `file_zea_version = 0.1.2`, above the 0.1.0a3 acceptance floor. **Verified on
-  the reproduced file only** — confirm against the delivered HDF5.
-- `minor`: the delivered `openpros_sample.hdf5` itself was not validated (see
-  scope caveat).
+  consistent with `demodulation_frequency = 0.0`. Units correct throughout
+  (Hz, m, m/s). Multi-track layout (`tracks/track_0/…`), which is permitted.
+- **1.2 `major` — the file cannot be read in the repo's own pinned environment.**
+  It was written with **zea 0.1.5**, which compresses with **blosc** (HDF5 filter
+  32001); zea 0.1.2, the version `pyproject.toml` pins, used **lzf** (filter
+  32000). Blosc is not bundled with h5py, so on a stock `uv sync` checkout every
+  read of `raw_data` fails with:
+  `OSError: Can't synchronously read data (can't open directory (/usr/local/hdf5/lib/plugin). Please verify its existence)`.
+  The contributor's own `reconstruct.py` fails on the contributor's own file this
+  way. Installing `hdf5plugin` (or exporting `HDF5_PLUGIN_PATH`) fixes it
+  completely and the file then validates and reconstructs.
+  **This is version skew, not contributor error** — they used a newer zea, and
+  nothing in the submission guide tells them not to. The fix belongs on the
+  OpenH-RF side: add `hdf5plugin` to `pyproject.toml`. Worth raising upstream
+  too — if zea writes blosc by default it should depend on `hdf5plugin`, or the
+  read path should raise a message that names the real cause.
+- `info`: `file_zea_version = 0.1.5`, comfortably above the 0.1.0a3 floor. The
+  eval environment ran zea 0.1.2, i.e. the file is *newer* than the validator.
+- `info`: `old_openpros_sample.hdf5` was written with zea 0.1.2 and lzf, and reads
+  with no plugin at all.
 
 **Evidence:**
-- `validate_zea_spec.py` → `{"compliant": true, "zea_version": "0.1.2", "file_zea_version": "0.1.2", "has_raw_data": true, "errors": []}`
+- Delivered: `{"compliant": true, "zea_version": "0.1.2", "file_zea_version": "0.1.5", "has_raw_data": true, "errors": []}` (with `hdf5plugin` imported)
+- Without the plugin: `{"compliant": false, "errors": ["OSError: Can't synchronously read data (can't open directory (/usr/local/hdf5/lib/plugin)…"]}`
+- Filters — delivered: `raw_data … filters=[(32001, 'blosc')]`, chunks `(1, 6, 1000, 322, 1)`; old: `compression='lzf'`, filters `[(32000, 'lzf')]`
+- `h5py.h5z.filter_avail(32001)` → `False` before `pip install hdf5plugin`, `True` after
 - `top_level_groups: [metadata, metrics, probe, tracks]`; `data_groups: [raw_data, sos_map]`
 
 **Suggested fixes:**
-- None for structure. Re-validate the actual delivered file.
+- Add `hdf5plugin` to the OpenH-RF `pyproject.toml` dependencies (**not** a
+  contributor action).
+- Consider declaring `hdf5plugin` as a zea dependency wherever blosc is the
+  write-side default.
 
 ### 2. Reconstruction & image quality
 **Status:** pass_with_notes
 **Severity:** minor
 
 **Findings:**
-- `reconstruct.py` ran **unmodified** to completion; output tensor
-  `(1, 1, 401, 161)`, matching the ground-truth SOS grid.
+- `reconstruct.py` ran **unmodified on the real file with the real checkpoint**
+  and completed; output tensor `(1, 1, 401, 161)`, matching the ground-truth SOS
+  grid. The figure it produced is structurally identical to the contributor's own
+  `pred_sos.png` — same structures at the same coordinates, same value range —
+  differing only in matplotlib styling, because the contributor rendered theirs
+  with `--use_zea_vis_style`. **The submission reproduces its own published
+  result.**
 - `network.py` instantiates to **20,447,515** trainable parameters, exactly the
-  count in the contributor's own comment — the architecture matches the shipped
-  checkpoint.
+  count in the contributor's own comment, and the checkpoint loads into it with
+  `load_state_dict` under `strict=True` — no missing or unexpected keys.
+- `blocker→resolved`: on a stock pinned checkout the run dies at
+  `f.data.raw_data[:]` with the blosc plugin error (finding 1.2). With
+  `HDF5_PLUGIN_PATH` exported it runs clean, **with no edit to the script**.
 - Perceptual inspection of the contributor's `pred_sos.png`: prediction and
   ground truth agree structurally — the skin/fat interface at z ≈ 5 mm, the
   sloping connective-tissue band from (0, 20 mm) to (60, 55 mm), the large
@@ -207,11 +224,28 @@ the check.
 **Severity:** major
 
 **Findings:**
-- **Round-1 geometry feedback is correctly resolved.** Measured on the
-  reproduced file: `probe_geometry` x spans **0–60.0000 mm**, `sos_map`
-  coordinates span **0–60.0000 mm × 0–150.0000 mm**, and `transmit_origins` x
-  spans **0–60.2500 mm**. Sources and receivers now agree, and the panel matches
-  the paper's 60 × 150 mm. The previous 3× (20 mm / 50 mm) error is gone.
+- **Round-1 geometry feedback is resolved — confirmed in the delivered file, not
+  just in the script.** Measured directly on `openpros_sample.hdf5`:
+  `probe_geometry` x spans **0–60.0000 mm**, `sos_map` coordinates span
+  **0–60.0000 mm × 0–150.0000 mm**, `transmit_origins` x spans **0–60.2500 mm**.
+  Sources and receivers agree; the panel matches the paper's 60 × 150 mm.
+  `metadata/credit` and `metadata/subject/{type,id}` are populated.
+  `old_openpros_sample.hdf5` is confirmed to be the file round 1 reviewed:
+  `probe_geometry` x **0–20 mm**, `sos_map` **0–20 × 0–50 mm**,
+  `transmit_origins` x **0–60.25 mm** (the exact disagreement round 1 flagged),
+  and an entirely **empty** `metadata` group. Every round-1 item is fixed in the
+  new upload except `annotations/anatomy` and `probe/name`.
+- `major`: **the uploaded `convert.py` does not reproduce the uploaded file.**
+  The script passes `probe={"type": "linear", …}`, but the delivered file has no
+  `probe/type` — its `probe` group contains only `probe_geometry`, and the group
+  carries no attributes. This is not a zea behaviour change: a minimal
+  `File.create` with `probe={"name": None, "type": "linear", …}` persists
+  `probe/type` under **both** zea 0.1.2 and 0.1.5. A full structural diff of the
+  delivered file against the file the uploaded `convert.py` produces shows
+  `probe/type` as the **only** difference — every other key, shape and dtype
+  matches. So the delivered file was almost certainly written by a slightly
+  different, unshipped version of the script. Reproducibility depends on the
+  shipped script actually being the one that made the data.
 - `major`: **no source wavelet.** No `waveforms_one_way`/`waveforms_two_way`, no
   pulse description anywhere. Blocks FWI and any physics-based reconstruction.
 - `major`: `probe_center_frequency` and `probe_bandwidth_percent` unset (zea
@@ -229,8 +263,9 @@ the check.
   beamformer, and the justification exists only as a comment in `convert.py`.
 - `minor`: `time_to_next_transmit` unset — zea warns it cannot compute track
   timestamps. `tgc_gain_curve` unset (reasonable for simulation).
-- `minor`: `probe/name` is `None`; `probe/type` is `"linear"`, which understates a
-  322-element pair of *opposing* apertures.
+- `minor`: `probe/name` and `probe/type` are both absent from the delivered file
+  (see the provenance finding above). Even when the script does set it,
+  `"linear"` understates a 322-element pair of *opposing* apertures.
 - `minor`: `metadata/annotations/anatomy` still unset despite round-1 feedback.
   Prostate is a clear anatomical target — set it.
 - `info`: sanity checks pass. `fs`/`fc` = 10 MHz / 1 MHz = 10× (spec wants ≥ 4×);
@@ -239,11 +274,22 @@ the check.
 - `info`: `dt`, `n_ch` and `ny` are assigned in `convert.py` but never used.
   `dt = 1e-7` is consistent with the hard-coded `sampling_frequency = 1e7`.
 
-**Evidence:**
-- `probe_geometry` z unique values: `[0.125 mm, 150.25 mm]`
-- `transmit_origins` z unique values: `[0.125 mm, 150.25 mm]`
-- `sos_map` coordinates: x `0–60 mm`, y `0–0 mm`, z `0–150 mm`
+**Evidence** (all measured on the delivered `openpros_sample.hdf5`):
+
+| Field | Delivered (zea 0.1.5) | `old_` file (zea 0.1.2) |
+|---|---|---|
+| `probe_geometry` x | **0 – 60.0000 mm** ✅ | 0 – 20.0000 mm ❌ |
+| `probe_geometry` z | 0.125 / 150.25 mm | 0.125 / 150.25 mm |
+| `sos_map` coord x | **0 – 60.0000 mm** ✅ | 0 – 20.0000 mm ❌ |
+| `sos_map` coord z | **0 – 150.0000 mm** ✅ | 0 – 50.0000 mm ❌ |
+| `transmit_origins` x | 0 – 60.2500 mm | 0 – 60.2500 mm |
+| `metadata` keys | `credit`, `subject/id`, `subject/type` ✅ | *(empty)* ❌ |
+| `probe` members | `probe_geometry` only | `probe_geometry` only |
+
+- `fs` / `fc` / `c` = `1e7` / `1e6` / `1500` in both files
 - All-zero check: `initial_times`, `t0_delays`, `tx_apodizations`, `focus_distances`, `polar_angles` → all `True`
+- Structural diff vs uploaded `convert.py` output: only `probe/type` differs
+- `probe/type` persistence test: `zea 0.1.2 → ['probe_geometry', 'type']`, `zea 0.1.5 → ['probe_geometry', 'type']`
 - Write-time zea warnings: `name`, `probe_center_frequency`, `probe_bandwidth_percent`, `element_width`, `time_to_next_transmit`, `azimuth_angles` unset
 
 **Suggested fixes:**
@@ -416,6 +462,10 @@ fields are marked `REQUIRES_CONTRIBUTOR`.
 9. **Confirm `subject/id` `"2021-03-16"`** is not patient-derived.
 10. **Decide how many acquisitions** are contributed and unpin
     `flag_single_sample`.
+11. **Re-upload the `convert.py` that actually produced the file** — the shipped
+    one sets `probe/type` and the delivered file has none, so the two are out of
+    sync. Then delete `old_openpros_sample.hdf5` from the Drive folder, or rename
+    it so it cannot be mistaken for current data.
 
 ## Reference reconstruction
 
@@ -425,6 +475,17 @@ Contributor's `pred_sos.png`. Left: ground-truth SOS map. Right: InversionNet
 prediction. Panel 60 mm × 150 mm, display window 1300–1700 m/s. Structures agree
 in position and shape; the prediction is smoother, consistent with CNN
 regression rather than a pipeline defect.
+
+### Independent reproduction
+
+![Reproduced from the delivered file and checkpoint](reproduced_pred_sos.png)
+
+Produced here by running the submitted `reconstruct.py` **unmodified** on the
+delivered `openpros_sample.hdf5` with the delivered
+`InversionNet_weights_only.pth`. Identical structures at identical coordinates;
+the only difference from the contributor's figure is matplotlib styling (theirs
+was rendered with `--use_zea_vis_style`). This closes the loop: the submitted
+code, data and weights together regenerate the submitted result.
 
 ## Appendix: verification of the custom-operations guidance
 
