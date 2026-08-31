@@ -7,10 +7,22 @@
 
 > **Scope caveat — read this first.** The submission's binary files
 > (`openpros_sample.hdf5`, 21.5 MB; `InversionNet_weights_only.pth`, 81.9 MB)
-> could not be transferred into the evaluation environment: `drive.google.com`
-> and `drive.usercontent.google.com` are blocked by the network egress policy,
-> and the Drive API rejects unauthenticated media downloads. The five Python
-> files and the reference PNG were recovered in full.
+> could not be transferred into the evaluation environment. Three routes were
+> tried and all are closed: `drive.google.com` and
+> `drive.usercontent.google.com` are blocked by the network egress policy; the
+> Drive API rejects unauthenticated media downloads (`403`, missing API key);
+> and the Google Drive connector caps downloads at **10 MB**, which both files
+> exceed. The five Python files and the reference PNG are under that cap and
+> were recovered in full.
+>
+> **In particular, the delivered `openpros_sample.hdf5` was never opened.**
+> Whether round-1 feedback is integrated *in the uploaded file* — as opposed to
+> in the `convert.py` that would produce it — is therefore **not** established
+> by this report. Note the Drive timestamps: `convert.py` was last modified
+> 2026-08-24, and `openpros_sample.hdf5` 2026-08-25, so the sample post-dates
+> the revised script and is *probably* current. `old_openpros_sample.hdf5`
+> (2026-07-14, owned by a different account) appears to be the pre-fix file.
+> This needs confirming against the actual bytes.
 >
 > To evaluate anyway, `convert.py` was run **unmodified** against synthetic
 > source arrays of exactly the shapes it expects, producing a zea file that is
@@ -165,6 +177,18 @@ the check.
   all unused, so the reconstruction cannot detect a geometry error. Contrast
   `submissions/Dartmouth-UCT/reconstruct.py`, where `USCTReflectivityDAS` reads
   the geometry back out of the file and a correct image *is* the geometry check.
+- `minor`: **`custom_ops.py` registers its operations under a module path that
+  does not exist.** The decorators read `@ops_registry("openpros.custom_ops.MyRearrange")`
+  and `…LogTransform`, but the file is a top-level `custom_ops.py` — there is no
+  `openpros` package. zea's auto-import resolves the registered name as a real
+  module path on load, so the moment a `pipeline.yaml` referencing these ops is
+  opened in a process that has not already imported `custom_ops` by hand, it
+  fails with `ModuleNotFoundError: No module named 'openpros'`. Held at `minor`
+  rather than `major` only because no `pipeline.yaml` ships today, so nothing is
+  currently broken — but this becomes **blocking** the moment the pipeline is
+  serialized, which is the next action item. Fix: register as
+  `custom_ops.MyRearrange` / `custom_ops.LogTransform` (verified working), or
+  make a real `openpros/` package with an `__init__.py`.
 - `info`: the commented-out config path uses `Config.from_yaml`, which zea 0.1.2
   marks deprecated — use `Config.from_path`.
 
@@ -350,11 +374,22 @@ fields are marked `REQUIRES_CONTRIBUTOR`.
   `squeeze(0)`.
 - **[`autofix/pipeline.yaml`](autofix/pipeline.yaml)** — the serialized pipeline,
   the deliverable that was missing.
+- **[`autofix/custom_ops.py`](autofix/custom_ops.py)** — the contributor's file
+  with the registration paths corrected to `custom_ops.*` and the stale
+  `# 20, 1000, 322, 1` shape comment fixed to `# (n_frames, 20, 1000, 322, 1)`.
 - **[`autofix/verify_pipeline_roundtrip.py`](autofix/verify_pipeline_roundtrip.py)** —
-  the check that proves it. Builds the pipeline in code, writes YAML, reloads via
-  `Pipeline.from_config`, runs both, compares: **max abs diff 0.0, outputs
-  bit-identical**, both `(1, 1, 401, 161)`. Non-default `weights_path` values were
-  separately confirmed to serialize (zea omits params equal to their default).
+  the check that proves it, in three stages:
+  1. `to_config().to_yaml()` succeeds where `Lambda` raised.
+  2. `Pipeline.from_config` rebuilds it; both run and compare **max abs diff 0.0,
+     bit-identical**, both `(1, 1, 401, 161)`.
+  3. **Cold load** — a fresh subprocess opens `pipeline.yaml` with neither
+     `custom_ops` nor `model_ops` imported by hand, and runs it: `COLD LOAD OK`.
+     Stage 3 is the one that catches the bad registration path; stages 1 and 2
+     pass even with `openpros.` prefixes, because the module is already in
+     `sys.modules` by then.
+
+  Non-default `weights_path` values were separately confirmed to serialize (zea
+  omits params equal to their default).
 - **[`autofix/README.md`](autofix/README.md)** — data-card draft with the YAML
   frontmatter and every derivable field populated from the zea file.
 - **[`pred_sos.png`](pred_sos.png)** — the contributor's reference figure,
@@ -369,8 +404,10 @@ fields are marked `REQUIRES_CONTRIBUTOR`.
 3. **Add the source wavelet** (`scan/waveforms_one_way`/`waveforms_two_way`) plus
    `probe_center_frequency`, `probe_bandwidth_percent`, `element_width`,
    `element_height`, `probe/name`.
-4. **Adopt `autofix/model_ops.py` + `pipeline.yaml`**, and delete the dead
-   `if False:` / `--write_config` paths from `reconstruct.py`.
+4. **Adopt `autofix/model_ops.py` + `autofix/custom_ops.py` + `pipeline.yaml`**,
+   delete the dead `if False:` / `--write_config` paths from `reconstruct.py`, and
+   **fix the `openpros.` registration prefix** — otherwise the new `pipeline.yaml`
+   will not open on a machine that has not already imported your modules.
 5. **Document the transmit model** — SS/SR/RR/RS block folding, and why
    `t0_delays`/`tx_apodizations` are zero.
 6. **Set `metadata/annotations/anatomy`.**
@@ -388,3 +425,36 @@ Contributor's `pred_sos.png`. Left: ground-truth SOS map. Right: InversionNet
 prediction. Panel 60 mm × 150 mm, display window 1300–1700 m/s. Structures agree
 in position and shape; the prediction is smoother, consistent with CNN
 regression rather than a pipeline defect.
+
+## Appendix: verification of the custom-operations guidance
+
+The advice given to the contributor on Discord was tested claim by claim against
+zea 0.1.2. **It holds**, with one wording correction and one important gap.
+
+| # | Claim | Verdict | Observed |
+|---|---|---|---|
+| 1 | A `Lambda` pipeline cannot be serialized to YAML | ✅ holds | `TypeError: Cannot serialize generic 'lambda' operation with an arbitrary callable. Use a registered operation class instead …` |
+| 2 | Subclassing `Lambda` **or** `Operation` without `@ops_registry(...)` gives *the exact same error* | ⚠️ half | `Lambda` subclass → same `TypeError`. `Operation` subclass → **different** error: `KeyError: "Class <class '…UnregisteredOp'> not registered."` Same practical outcome, different message. |
+| 3 | Passing the model object itself fails | ✅ holds | `TypeError: Parameter 'model' of 'ModelAsArg' is callable and cannot be serialized to config. Override get_dict() to skip it.` — matches the quoted message closely |
+| 4 | Passing a weights path instead works | ✅ holds | Serializes as `{'name': 'openpros.claim_tests.modelbypath', 'params': {'weights_path': 'alt_weights.pth'}}`. zea omits params equal to their default, so a non-default path is what gets recorded. |
+| 5 | Registering under the full module path makes zea import the module automatically, so anyone can open the YAML without importing anything by hand | ✅ holds — **but the path must be real** | The auto-import mechanism works exactly as described. It resolves the registered name as an actual importable module, so the name must *be* one. `openpros.model_ops.InversionNetSOS` on a top-level `model_ops.py` → `ModuleNotFoundError: No module named 'openpros'`. Re-registered as `model_ops.InversionNetSOS`: cold load in a fresh process succeeds and runs. |
+
+**The gap worth adding to the guidance.** The Discord note says registering under
+the full module path "matters: zea then imports that module automatically on
+load". That is correct, and it is precisely *why* an invented prefix is fatal —
+but the note does not say the path must correspond to a module that actually
+exists on `sys.path`. The contributor read `my_project.my_ops.MyTorchModel` from
+the example as a naming convention and wrote `openpros.custom_ops.MyRearrange`
+for a flat folder with no `openpros` package. Their `custom_ops.py` has this
+today.
+
+It is a quiet failure: `to_yaml` succeeds, and `Pipeline.from_config` succeeds
+in the *same* process, because the module is already in `sys.modules`. It only
+surfaces for the downstream user opening the YAML cold — exactly the person the
+serialization is for. Suggested addition:
+
+> The registered name must be the module's real import path. For a flat
+> submission folder that means `custom_ops.MyRearrange`, not
+> `myproject.custom_ops.MyRearrange` — use the dotted prefix only if there is a
+> real package with an `__init__.py`. Test it by loading `pipeline.yaml` in a
+> fresh process that imports nothing but `zea`.

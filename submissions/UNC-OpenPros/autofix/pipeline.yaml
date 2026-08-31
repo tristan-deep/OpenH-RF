@@ -1,7 +1,7 @@
 pipeline:
     operations:
-    - openpros.custom_ops.myrearrange
-    -   name: openpros.custom_ops.logtransform
+    - custom_ops.myrearrange
+    -   name: custom_ops.logtransform
         params:
             k: 100000.0
             data_min: -0.25
@@ -11,7 +11,7 @@ pipeline:
             output_range:
             - -1.0
             - 1.0
-    - openpros.model_ops.inversionnetsos
+    - model_ops.inversionnetsos
     -   name: normalize
         params:
             output_range:

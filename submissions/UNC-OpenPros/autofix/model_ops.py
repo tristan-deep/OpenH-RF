@@ -18,7 +18,7 @@ from zea.ops import Operation
 from network import InversionNet
 
 
-@ops_registry("openpros.model_ops.InversionNetSOS")
+@ops_registry("model_ops.InversionNetSOS")
 class InversionNetSOS(Operation):
     """Run the pretrained InversionNet on rearranged OpenPros channel data."""
 
