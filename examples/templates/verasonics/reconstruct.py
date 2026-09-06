@@ -1,8 +1,8 @@
 """Reconstruct: beamform the Verasonics plane-wave phantom using DAS.
 
-Loads the HDF5 file created by convert.py, reads the acquisition parameters and
-raw RF data, and runs a delay-and-sum beamforming pipeline configured in
-pipeline.yaml. The resulting B-mode image is saved as a PNG file.
+Defines a delay-and-sum beamforming pipeline in code, saves it (together with some
+beamforming parameters) to pipeline.yaml, then loads that YAML back and runs it on
+the HDF5 file created by convert.py. The resulting B-mode image is saved as a PNG file.
 
 Usage:
     python examples/templates/verasonics/reconstruct.py
@@ -20,23 +20,75 @@ import matplotlib.pyplot as plt
 import numpy as np
 import zea
 from zea import Config, File, Pipeline
+from zea.ops import (
+    Beamform,
+    Cast,
+    Demodulate,
+    EnvelopeDetect,
+    LogCompress,
+    Normalize,
+)
 
 HERE = Path(__file__).parent
 DEFAULT_INPUT = HERE / "verasonics_sample.hdf5"
 DEFAULT_OUTPUT = HERE / "verasonics_bmode.png"
 CONFIG = HERE / "pipeline.yaml"
 
+# Custom reconstruction parameters. These are passed to load_parameters and
+# override (or fill in) values read from the HDF5 file.
+PARAMETERS = {
+    "grid_size_x": 580,
+    "grid_size_z": 600,
+    "dynamic_range": [-40, 0],
+    "zlims": [0.0065, 0.058],
+    # Lens correction is applied manually below using the Verasonics scalar
+    # one-way delay, so zea's Fermat-based correction is disabled here.
+    "apply_lens_correction": False,
+}
+
+
+def build_pipeline() -> Pipeline:
+    """Define the delay-and-sum beamforming pipeline in code."""
+    return Pipeline(
+        operations=[
+            Cast(dtype="float32"),
+            Demodulate(),
+            Beamform(beamformer="delay_and_sum", num_patches=200),
+            EnvelopeDetect(),
+            Normalize(),
+            LogCompress(),
+        ],
+        validate=False,
+    )
+
+
+def write_config(pipeline: Pipeline, path: Path) -> None:
+    """Serialize the pipeline and acquisition parameters to a YAML config file."""
+    config = pipeline.to_config()
+    config["parameters"] = PARAMETERS
+    config.to_yaml(str(path))
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="CUDA device ID (e.g. 'cuda:0', 'auto:1', or 'cpu')",
+    )
     args = parser.parse_args()
+
+    zea.init_device(device=args.device, verbose=False)
 
     if not args.input.exists():
         raise FileNotFoundError(f"{args.input} not found. Run convert.py first.")
 
-    # Load beamforming config
+    # Define the beamforming pipeline in code, save it (with the acquisition
+    # parameters) to pipeline.yaml, then load that YAML back in.
+    write_config(build_pipeline(), CONFIG)
     config = Config.from_path(str(CONFIG))
 
     # Load file: read acquisition parameters (with config overrides) and raw RF data
@@ -58,7 +110,7 @@ def main():
         round_trip_delay = 2.0 * lens_correction_wl / parameters.center_frequency
         parameters.initial_times = parameters.initial_times - round_trip_delay
 
-    # Build and run the beamforming pipeline defined in pipeline.yaml
+    # Build and run the beamforming pipeline loaded from pipeline.yaml
     pipeline = Pipeline.from_config(config)
     inputs = pipeline.prepare_parameters(parameters)
 
