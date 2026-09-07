@@ -4,12 +4,12 @@ version = "0.0.1"
 description = "Tooling and examples for the OpenH-RF open ultrasound channel-capture dataset initiative."
 readme = "README.md"
 license = { text = "Apache-2.0" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [
     { name = "OpenH-RF Contributors" },
 ]
 dependencies = [
-    "zea==0.1.2",
+    "zea==0.1.5",
     "numpy",
     "huggingface_hub",
     "datasets",
