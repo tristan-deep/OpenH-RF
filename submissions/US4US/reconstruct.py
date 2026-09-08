@@ -4,11 +4,16 @@
 This is a full ring of point-source transmit elements with a receive sub-aperture
 on the far side of the ring (not surrounding the transmitter), so it's a
 transmission (amplitude-attenuation) acquisition, not reflection B-mode.
-`zea.ops.Beamform`/`USCTReflectivityDAS` don't apply, so this defines four custom
+`zea.ops.Beamform`/`USCTReflectivityDAS` don't apply, so this defines five custom
 operations (https://zea.readthedocs.io/en/latest/pipeline.html#custom-operations):
 
     TransmissionAttenuation -> ApertureRearrange -> ResortSinogram
-        -> FilteredBackprojection -> (built-in) GaussianBlur
+        -> LinearizeDetectors -> FilteredBackprojection -> (built-in) GaussianBlur
+
+`LinearizeDetectors` mirrors the `linearize_detectors()` step us4us added to
+`reconstruction_example.py` on 2026-09-07: it resamples each projection from the
+ring's arc-spaced detectors onto the uniform chord axis that parallel-beam FBP
+assumes. Without it the reconstruction is radially distorted.
 
 `ApertureRearrange`'s `aperture_offset` (receive channel `k` of transmit `t` is
 ring element `(t + offset + k) mod 1024`, centered on the antipode) isn't
@@ -41,6 +46,7 @@ CONFIG = HERE / "pipeline.yaml"
 N_EL = 1024  # ring elements
 N_RX = 512  # receive sub-aperture width
 APERTURE_OFFSET = (N_EL - N_RX) // 2  # 256
+PROBE_RADIUS = 13e-2  # m; matches us4us's reconstruction_example.py and the measured geometry
 
 
 @ops_registry("transmission_attenuation")
@@ -49,9 +55,12 @@ class TransmissionAttenuation(Operation):
     ``-20 * log10(amp / reference)``. ``reference=1.0`` is arbitrary units (no
     water-reference calibration)."""
 
-    def __init__(self, reference: float = 1.0, **kwargs):
+    # Default is None (resolved below) rather than 1.0 so that an explicitly
+    # passed value always differs from the signature default and is therefore
+    # written into pipeline.yaml - zea omits params left at their default.
+    def __init__(self, reference: float | None = None, **kwargs):
         super().__init__(**kwargs)
-        self.reference = reference
+        self.reference = 1.0 if reference is None else reference
 
     def call(self, **kwargs):
         raw = kwargs[self.key]  # (n_tx, n_ax, n_rx, n_ch)
@@ -117,6 +126,44 @@ class ResortSinogram(Operation):
         return {self.output_key: sinogram}
 
 
+@ops_registry("linearize_detectors")
+class LinearizeDetectors(Operation):
+    """Resample each projection from the ring's arc positions onto a uniform
+    linear (chord) axis, which is what parallel-beam FBP assumes.
+
+    Detector `i` sits at angle `alpha_i` on the ring, so its perpendicular offset
+    from the ring centre is `R * sin(alpha_i)` — compressed towards the edges of
+    the aperture, not uniformly spaced. Backprojecting without correcting this
+    distorts the image radially. Matches `linearize_detectors()` in us4us's
+    `reconstruction_example.py` (added in their 2026-09-07 revision).
+
+    `keras.ops` has no `interp`, but both the source (`xp`) and target (`x`) axes
+    depend only on `n_detectors` and the radius, so the gather indices and
+    interpolation weights are constant and precomputed here in numpy. Endpoint
+    handling matches `np.interp` (clamp, no extrapolation).
+    """
+
+    # See the note on TransmissionAttenuation.__init__ for why this defaults to None.
+    def __init__(self, probe_radius: float | None = None, **kwargs):
+        super().__init__(**kwargs)
+        self.probe_radius = PROBE_RADIUS if probe_radius is None else probe_radius
+
+    def call(self, **kwargs):
+        sinogram = kwargs[self.key]  # (n_angles, n_detectors)
+        n_col = sinogram.shape[1]
+
+        i = np.arange(-(n_col // 2), n_col // 2)
+        xp = self.probe_radius * np.sin(i * np.pi / 2 / n_col)  # arc -> chord, non-uniform
+        x = i * np.sqrt(2) * self.probe_radius / n_col  # uniform target axis
+
+        lo = np.clip(np.searchsorted(xp, x) - 1, 0, n_col - 2)
+        w = np.clip((x - xp[lo]) / (xp[lo + 1] - xp[lo]), 0.0, 1.0).astype("float32")
+
+        left = ops.take(sinogram, ops.convert_to_tensor(lo), axis=1)
+        right = ops.take(sinogram, ops.convert_to_tensor(lo + 1), axis=1)
+        return {self.output_key: left * (1.0 - w) + right * w}
+
+
 @ops_registry("filtered_backprojection")
 class FilteredBackprojection(Operation):
     """Ram-Lak (ramp) filter + backprojection onto a square grid sized to the
@@ -163,13 +210,22 @@ class FilteredBackprojection(Operation):
         return {self.output_key: image}
 
 
-def build_pipeline(reference: float = 1.0, smooth_sigma: float = 2.0) -> Pipeline:
+def build_pipeline(
+    reference: float = 1.0,
+    aperture_offset: int = APERTURE_OFFSET,
+    probe_radius: float = PROBE_RADIUS,
+    smooth_sigma: float = 1.0,
+) -> Pipeline:
+    """Every acquisition-specific constant is passed explicitly, so it round-trips
+    into `pipeline.yaml` and the reconstruction is fully described by that file
+    rather than by constants in this script."""
     return Pipeline(
         operations=[
             Cast(dtype="float32"),
             TransmissionAttenuation(reference=reference),
-            ApertureRearrange(aperture_offset=APERTURE_OFFSET),
+            ApertureRearrange(aperture_offset=aperture_offset),
             ResortSinogram(),
+            LinearizeDetectors(probe_radius=probe_radius),
             FilteredBackprojection(),
             GaussianBlur(sigma=smooth_sigma, axes=(-2, -1)),
         ],
@@ -199,9 +255,9 @@ def ring_center_and_radius(probe_geometry: np.ndarray) -> tuple[np.ndarray, floa
     return center, radius
 
 
-def rx_element_indices(aperture_offset: int, n_tx: int = N_EL, n_rx: int = N_RX) -> np.ndarray:
+def rx_element_indices(aperture_offset: int, n_tx: int, n_rx: int) -> np.ndarray:
     """Physical ring-element index for every (transmit, raw receive channel)
-    pair: `(n_tx, n_rx)`."""
+    pair: `(n_tx, n_rx)`. Sizes come from the file, not from constants."""
     k = np.arange(n_rx)
     return (np.arange(n_tx)[:, None] + aperture_offset + k[None, :]) % n_tx
 
@@ -225,7 +281,10 @@ def main():
     parser.add_argument("--frame", type=int, default=0)
     parser.add_argument("--aperture_offset", type=int, default=APERTURE_OFFSET)
     parser.add_argument(
-        "--smooth_sigma", type=float, default=2.0, help="post-FBP Gaussian smoothing"
+        "--probe_radius", type=float, default=PROBE_RADIUS, help="ring radius in metres"
+    )
+    parser.add_argument(
+        "--smooth_sigma", type=float, default=1.0, help="post-FBP Gaussian smoothing"
     )
     args = parser.parse_args()
 
@@ -234,11 +293,16 @@ def main():
         raise FileNotFoundError(f"{args.input} not found (looked in cwd and {HERE}).")
     output_path = input_path.with_name(f"{input_path.stem}_reconstruct.png")
 
-    # Build, save to pipeline.yaml, then reload before running
-    write_config(build_pipeline(smooth_sigma=args.smooth_sigma), CONFIG)
+    # Build with every parameter explicit, save to pipeline.yaml, then reload and
+    # run from that file - so the YAML alone fully describes the reconstruction.
+    pipeline = build_pipeline(
+        aperture_offset=args.aperture_offset,
+        probe_radius=args.probe_radius,
+        smooth_sigma=args.smooth_sigma,
+    )
+    write_config(pipeline, CONFIG)
     config = Config.from_path(str(CONFIG))
     pipeline = Pipeline.from_config(config)
-    pipeline.operations[2].aperture_offset = args.aperture_offset
 
     with File(str(input_path)) as f:
         probe_geometry = f.probe.probe_geometry[:]
@@ -248,16 +312,31 @@ def main():
         initial_times = f.scan.initial_times[:]
         dead_elements = parse_dead_channels(str(f.attrs.get("description", "")))
         zea.log.info(f"Dead elements parsed from description: {dead_elements.tolist()}")
+        # Cross-check the --probe_radius used by LinearizeDetectors against the
+        # radius actually implied by probe_geometry.
+        if abs(radius - args.probe_radius) > 1e-3:
+            zea.log.warning(
+                f"probe_radius={args.probe_radius:.4f} m differs from the measured ring "
+                f"radius {radius:.4f} m (centre {center[0]:.4f}, {center[1]:.4f} m)"
+            )
+        else:
+            zea.log.info(f"Ring radius: {radius:.4f} m (matches --probe_radius)")
 
         raw = np.asarray(f.data.raw_data[args.frame])  # (n_tx, n_ax, n_rx, n_ch)
 
-        stored_image = stored_sinogram = None
-        if "image" in [e.name for e in f.custom]:
-            stored_image = np.asarray(f.custom.image.data[args.frame])
-        if "sinogram" in [e.name for e in f.custom]:
-            stored_sinogram = np.asarray(f.custom.sinogram.data[args.frame])
+        # As of the Sep-2026 resubmission these live in `data` as spatial maps
+        # (with coordinates); older files put them in the free-form `custom`
+        # group. Read `data` first, fall back to `custom` for the old layout.
+        # us4us ship their own FBP output and sinogram alongside the raw data, as
+        # spatial maps under `data` with `coordinates`.
+        stored_image = np.asarray(f.data.image.values[args.frame])
+        image_coords = np.asarray(f.data.image.coordinates)
+        stored_sinogram = np.asarray(f.data.sinogram.values[args.frame])
+        sinogram_coords = np.asarray(f.data.sinogram.coordinates)
 
-    rx_idx = rx_element_indices(args.aperture_offset)  # (n_tx, n_rx)
+    rx_idx = rx_element_indices(
+        args.aperture_offset, n_tx=probe_geometry.shape[0], n_rx=raw.shape[2]
+    )  # (n_tx, n_rx)
     ring_xz = probe_geometry[:, [0, 2]].astype(np.float32)
 
     predicted, measured, residual = validate_geometry(
@@ -274,39 +353,61 @@ def main():
     recon = outputs["data"]  # (n_detectors, n_detectors)
 
     zea.visualize.set_mpl_style()
-    n_panels = 2 + (stored_sinogram is not None) + (stored_image is not None)
-    fig, axes = plt.subplots(1, n_panels, figsize=(6 * n_panels, 5.5))
+    fig, axes = plt.subplots(1, 4, figsize=(24, 5.5))
 
+    n_rx = raw.shape[2]
     rf_db = 20 * np.log10(np.abs(raw[0, :, :, 0]) / (np.abs(raw[0, :, :, 0]).max() + 1e-12) + 1e-10)
     axes[0].imshow(rf_db, aspect="auto", cmap="gray", vmin=-60, vmax=0)
-    axes[0].plot(np.arange(N_RX), predicted, "r--", lw=1.0, label="predicted direct arrival")
-    axes[0].plot(np.arange(N_RX), measured, "c:", lw=0.7, alpha=0.6, label="measured (argmax)")
+    axes[0].plot(np.arange(n_rx), predicted, "r--", lw=1.0, label="predicted direct arrival")
+    axes[0].plot(np.arange(n_rx), measured, "c:", lw=0.7, alpha=0.6, label="measured (argmax)")
     axes[0].set_ylim(raw.shape[1], 0)
     axes[0].legend(loc="lower left", fontsize=7)
     axes[0].set_title(f"RF, transmit 0 [dB]\ngeometry check: residual {residual:.2f} samples")
     axes[0].set_xlabel("Receive channel")
     axes[0].set_ylabel("Axial sample")
 
-    extent = [center[0] - radius, center[0] + radius, center[1] + radius, center[1] - radius]
+    # After LinearizeDetectors the backprojection grid spans the uniform chord
+    # axis, i.e. +-R*sqrt(2)/2 (~92 mm) about the ring centre - not +-R. Plotted
+    # in mm relative to the ring centre, matching the frame of the stored maps'
+    # own `coordinates` so the panels line up.
+    half_width = args.probe_radius * np.sqrt(2) / 2 * 1e3
+    extent = [-half_width, half_width, half_width, -half_width]
     vmin, vmax = np.percentile(recon, [1, 99])
     handle = axes[1].imshow(recon, cmap="magma", extent=extent, vmin=vmin, vmax=vmax)
     axes[1].set_title(f"Attenuation FBP (zea.Pipeline)\n({input_path.name}, frame {args.frame})")
-    axes[1].set_xlabel("X (m)")
-    axes[1].set_ylabel("Z (m)")
+    axes[1].set_xlabel("X (mm)")
+    axes[1].set_ylabel("Z (mm)")
     cax = make_axes_locatable(axes[1]).append_axes("right", size="5%", pad=0.05)
     fig.colorbar(handle, cax=cax)
 
-    panel_idx = 2
-    if stored_sinogram is not None:
-        axes[panel_idx].imshow(stored_sinogram, cmap="viridis", aspect="auto")
-        axes[panel_idx].set_title("Stored sinogram (custom/sinogram)")
-        axes[panel_idx].set_xlabel("Receive channel")
-        axes[panel_idx].set_ylabel("Transmit")
-        panel_idx += 1
-    if stored_image is not None:
-        axes[panel_idx].imshow(stored_image, cmap="magma")
-        axes[panel_idx].set_title("Stored FBP (custom/image)")
-        panel_idx += 1
+    # Stored sinogram: x is detector position in metres; the "z" slot carries the
+    # projection angle in radians (0..2*pi) rather than a Cartesian coordinate.
+    sino_extent = [
+        sinogram_coords[..., 0].min() * 1e3,
+        sinogram_coords[..., 0].max() * 1e3,
+        sinogram_coords[..., 2].max(),
+        sinogram_coords[..., 2].min(),
+    ]
+    axes[2].imshow(stored_sinogram, cmap="viridis", aspect="auto", extent=sino_extent)
+    axes[2].set_title("Stored sinogram (us4us)")
+    axes[2].set_xlabel("Detector position (mm)")
+    axes[2].set_ylabel("Projection angle (rad)")
+
+    img_extent = [
+        image_coords[..., 0].min() * 1e3,
+        image_coords[..., 0].max() * 1e3,
+        image_coords[..., 2].max() * 1e3,
+        image_coords[..., 2].min() * 1e3,
+    ]
+    svmin, svmax = np.percentile(stored_image, [1, 99])
+    h = axes[3].imshow(
+        stored_image, cmap="magma", extent=img_extent, vmin=svmin, vmax=svmax
+    )
+    axes[3].set_title("Stored FBP (us4us)")
+    axes[3].set_xlabel("X (mm)")
+    axes[3].set_ylabel("Z (mm)")
+    cax = make_axes_locatable(axes[3]).append_axes("right", size="5%", pad=0.05)
+    fig.colorbar(h, cax=cax)
 
     fig.suptitle(f"{input_path.name} — frame {args.frame}")
     fig.tight_layout()
