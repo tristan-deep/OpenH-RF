@@ -29,7 +29,7 @@ Acquisitions were performed on:
 - a Yezitronix B-RG-1.2 breast phantom,
 - a single reference slice from water only.
 
-The forearm and phantom acquisitions comprise consecutive slices spaced 4.5 cm apart in depth (half of the probe elevation).
+The forearm and phantom acquisitions comprise consecutive slices spaced 9 mm apart in depth (half of the probe elevation).
 
 Each slice was recorded using 1024 subsequent single-element transmissions, and received by a 512-element aperture located opposite the transmitting element.
 
