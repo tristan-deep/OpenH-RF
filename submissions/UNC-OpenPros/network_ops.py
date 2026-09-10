@@ -1,26 +1,27 @@
-# import os
-# os.environ["KERAS_BACKEND"] = "torch"
+"""Pipeline operation that runs the pretrained InversionNet model from ``zea``.
 
-import torch
-from network import InversionNet
+The network itself lives in :mod:`zea.models.inversionnet` and its weights are
+downloaded from the Hugging Face Hub, so nothing model-related is vendored here.
+"""
 
+from keras import ops
 from zea.internal.registry import ops_registry
+from zea.models.inversionnet import InversionNet
 from zea.ops import Operation
 
-@ops_registry('openpros.network_ops.InversionNetInference')
+
+@ops_registry("openpros.network_ops.InversionNetInference")
 class InversionNetInference(Operation):
-    def __init__(self, weights_path:str, **kwargs):
+    """Reconstruct a normalized speed-of-sound map from preprocessed waveforms."""
+
+    def __init__(self, preset: str, **kwargs):
         super().__init__(**kwargs)
-        self.weights_path = weights_path
-        self.model = InversionNet()
-        self.model.load_state_dict(torch.load(weights_path, map_location='cpu'))
-        self.model.eval()
-        
+        self.preset = preset
+        self.model = InversionNet.from_preset(preset)
 
     def call(self, **kwargs):
         data = kwargs[self.key]
-        self.model.to(data.device)
-        data = data.squeeze(-1)
-        with torch.no_grad():
-            output = self.model(data).squeeze(1).unsqueeze(-1)
-        return {self.output_key: output}
+        # MyRearrange leaves the data channels-first: (frames, 40, 1000, 161, 1).
+        # zea models are channels-last, like the rest of Keras.
+        data = ops.transpose(ops.squeeze(data, axis=-1), (0, 2, 3, 1))
+        return {self.output_key: self.model(data)}

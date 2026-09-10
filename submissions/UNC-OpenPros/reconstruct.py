@@ -4,7 +4,7 @@ This example reads the limited-view ultrasound waveform data written to the ZEA
 HDF5 format by ``convert.py``, converts it back to the tensor layout used by the
 OpenPros models, and applies the same signed-log and min-max preprocessing used
 by the official OpenPros implementation. The normalized data are passed through
-the pretrained reconstruction network, whose normalized prediction is mapped
+the pretrained ``zea`` InversionNet model, whose normalized prediction is mapped
 back to the physical speed-of-sound range (1300--3600 m/s). Finally, the script
 plots the predicted and ground-truth SOS maps side by side and saves the figure.
 
@@ -14,39 +14,44 @@ or restored from that YAML file with ``--load_config``.
 Usage:
     python reconstruct.py
 """
-import os
-import argparse
-os.environ["KERAS_BACKEND"] = "torch"
 
+import argparse
+import os
 from pathlib import Path
+
+os.environ["KERAS_BACKEND"] = "jax"
+
+import keras
 import matplotlib.pyplot as plt
+from custom_ops import LogTransform, MyRearrange
+from network_ops import InversionNetInference
+from zea.ops import Normalize
 
 import zea
 from zea import Config, File, Pipeline
-from zea.ops import Normalize, Lambda
-from custom_ops import MyRearrange, LogTransform
-from network_ops import InversionNetInference
 
 HERE = Path(__file__).parent
 INPUT = HERE / "openpros_sample.hdf5"
 CONFIG = HERE / "pipeline.yaml"
 OUTPUT = HERE / "pred_sos.png"
 
+
 def plot_comparison(sos, pred, path):
     _, ax = plt.subplots(1, 2, figsize=(7, 6))
-    im = ax[0].imshow(sos[0, :, :, 0], cmap='gray', vmin=1300, vmax=1700)
-    ax[0].set_title('Ground Truth SOS Map')
-    ax[1].imshow(pred[0, :, :, 0].cpu(), cmap='gray', vmin=1300, vmax=1700)
-    ax[1].set_title('Predicted SOS Map')
+    im = ax[0].imshow(sos[0, :, :, 0], cmap="gray", vmin=1300, vmax=1700)
+    ax[0].set_title("Ground Truth SOS Map")
+    ax[1].imshow(keras.ops.convert_to_numpy(pred)[0, :, :, 0], cmap="gray", vmin=1300, vmax=1700)
+    ax[1].set_title("Predicted SOS Map")
     for axis in ax:
-        axis.set_xlabel('X (mm)')
+        axis.set_xlabel("X (mm)")
         axis.set_xticks(range(0, 161, 40), labels=range(0, 61, 15))
-    ax[0].set_ylabel('Z (mm)')
-    ax[0].set_yticks(range(0, 401, 80), labels=range(0, 151, 30)) 
+    ax[0].set_ylabel("Z (mm)")
+    ax[0].set_yticks(range(0, 401, 80), labels=range(0, 151, 30))
     ax[1].set_yticks(range(0, 401, 80), [])
-    plt.colorbar(im, ax=ax, orientation='vertical', fraction=0.2, pad=0.04, label='SOS (m/s)')
-    plt.savefig(path, dpi=300, bbox_inches='tight')
+    plt.colorbar(im, ax=ax, orientation="vertical", fraction=0.2, pad=0.04, label="SOS (m/s)")
+    plt.savefig(path, dpi=300, bbox_inches="tight")
     plt.close()
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -82,13 +87,15 @@ def main():
         # its configured data range to [-1, 1]. After network inference, undo
         # the label normalization by mapping the prediction from [-1, 1] to the
         # physical SOS range of 1300--3600 m/s.
-        pipeline = Pipeline(operations=[
-            MyRearrange(), # rearrange data to the layout expected by the network
-            LogTransform(data_min=-0.25, data_max=0.45, k=1e5),
-            Normalize(output_range=(-1, 1)),
-            InversionNetInference(weights_path='InversionNet_weights_only.pth'),
-            Normalize(input_range=(-1, 1), output_range=(1300, 3600))
-        ])
+        pipeline = Pipeline(
+            operations=[
+                MyRearrange(),  # rearrange data to the layout expected by the network
+                LogTransform(data_min=-0.25, data_max=0.45, k=1e5),
+                Normalize(output_range=(-1, 1)),
+                InversionNetInference(preset="inversionnet-openpros"),
+                Normalize(input_range=(-1, 1), output_range=(1300, 3600)),
+            ]
+        )
 
     if args.write_config:
         config = pipeline.to_config()
@@ -98,11 +105,11 @@ def main():
 
     with File(INPUT) as f:
         raw = f.data.raw_data[:]
-        sos = f.data.sos_map.values[:] # gt 
+        sos = f.data.sos_map.values[:]  # gt
 
     print(f"raw_data shape: {raw.shape}")
     print(f"ground truth shape: {sos.shape}")
-    outputs = pipeline(data=raw)['data']
+    outputs = pipeline(data=raw)["data"]
     print(f"reconstructed shape: {outputs.shape}")
     if args.use_zea_vis_style:
         zea.visualize.set_mpl_style()

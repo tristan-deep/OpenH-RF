@@ -13,7 +13,7 @@ pipeline:
             - 1.0
     -   name: openpros.network_ops.inversionnetinference
         params:
-            weights_path: InversionNet_weights_only.pth
+            preset: inversionnet-openpros
     -   name: normalize
         params:
             output_range:
