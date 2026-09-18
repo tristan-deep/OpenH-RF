@@ -35,8 +35,6 @@ from zea import Config, File, Pipeline
 from zea.beamform.pixelgrid import polar_pixel_grid
 
 HERE = Path(__file__).parent
-_HDF5 = "hf://nvidia/OpenH-RF/resolvestroke/phantom_mp/phantom_mp.hdf5"
-DEFAULT_INPUT = "hf://nvidia/OpenH-RF/resolvestroke/phantom_mp/phantom_mp.hdf5"
 CONFIG = HERE / "pipeline.yaml"
 
 # --- Inputs -----------------------------------------------------------------
@@ -50,11 +48,11 @@ OUTPUT = None
 def sector_grids(p, apex):
     """Two perpendicular diverging-wave sector fans, each (n_radial, n_angular, 3)
     in Cartesian metres. The y-z fan is the x-z fan rotated 90 deg about z (swap
-    x and y). polar_pixel_grid measures radius from the apex, so the near bound is
-    offset by the apex to keep the configured zlims as true on-axis depth."""
+    x and y). polar_pixel_grid takes zlims as on-axis depth and adds the apex to the
+    radii itself, so the configured zlims go in unchanged."""
     lims = tuple(float(v) for v in p["polar_limits"])
     z0, z1 = (float(v) for v in p["zlims"])
-    xz = polar_pixel_grid(lims, (z0 + apex, z1), int(p["grid_size_z"]), int(p["grid_size_x"]), apex)
+    xz = polar_pixel_grid(lims, (z0, z1), int(p["grid_size_z"]), int(p["grid_size_x"]), apex)
     yz = xz.copy()
     yz[..., 0], yz[..., 1] = 0.0, xz[..., 0]
     return np.stack([xz, yz])  # (2, n_r, n_theta, 3)

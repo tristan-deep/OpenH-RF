@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Example reconstruction script for the resolvestroke/clinical/SP02-Left-2 dataset of OpenH-RF.
+"""Example reconstruction script for the resolvestroke/clinical datasets of OpenH-RF.
 
-Dataset link: https://huggingface.co/datasets/nvidia/OpenH-RF/tree/main/resolvestroke/clinical/SP02-Left-2
+Dataset link: https://huggingface.co/datasets/nvidia/OpenH-RF/tree/main/resolvestroke/clinical
 
 B-mode reconstruction of a matrix-probe diverging-wave clinical CEUS flow acquisition.
+All 20 clinical acquisitions (``SP01``-``SP10``, Left/Right) share the same probe,
+sequence and file layout, so this one script and ``pipeline.yaml`` serve them all:
+pick the acquisition with ``SUBJECT`` below.
 
 Because the probe is a 2D array (32x32), a single diverging transmit insonifies
 a 3D volume, while zea's polar grid is 2D (a single x-z fan at y=0). The script
@@ -37,15 +40,15 @@ from zea import Config, File, Pipeline
 from zea.beamform.pixelgrid import polar_pixel_grid
 
 HERE = Path(__file__).parent
-_HDF5 = "hf://nvidia/OpenH-RF/resolvestroke/clinical/SP02-Left-2/SP02-Left-2.hdf5"
-DEFAULT_INPUT = "hf://nvidia/OpenH-RF/resolvestroke/clinical/SP02-Left-2/SP02-Left-2.hdf5"
 CONFIG = HERE / "pipeline.yaml"
 TGC_DB_PER_CM = 1.5  # display-only linear TGC (dB gain per cm of depth)
 
 # --- Inputs -----------------------------------------------------------------
-# Defaults stream straight from the published corpus. Swap any of these for a
-# local path to run against your own copy.
-INPUT = "hf://nvidia/OpenH-RF/resolvestroke/clinical/SP02-Left-2/SP02-Left-2.hdf5"
+# One script serves all 20 clinical acquisitions; pick one with SUBJECT (the
+# subdirectory / file stem on the Hub, e.g. "SP07-Right"). Defaults stream straight
+# from the published corpus. Swap INPUT for a local path to run against your own copy.
+SUBJECT = "SP02-Left-2"
+INPUT = f"hf://nvidia/OpenH-RF/resolvestroke/clinical/{SUBJECT}/{SUBJECT}.hdf5"
 FRAME = 0
 OUTPUT = None
 
@@ -81,11 +84,11 @@ def build_sector_grids(config, parameters):
 
     polar_limits = tuple(float(v) for v in p["polar_limits"])
     z0, z1 = (float(v) for v in p["zlims"])
-    # polar_pixel_grid measures radius from the apex, so offset the near bound by
-    # the apex -> the configured zlims are true on-axis depth.
+    # polar_pixel_grid takes zlims as on-axis depth from the transducer face and adds
+    # distance_to_apex to the radii itself, so the configured zlims go in unchanged.
     grid_xz = polar_pixel_grid(
         polar_limits,
-        (z0 + apex, z1),
+        (z0, z1),
         num_radial_pixels=int(p["grid_size_z"]),
         num_polar_pixels=int(p["grid_size_x"]),
         distance_to_apex=apex,

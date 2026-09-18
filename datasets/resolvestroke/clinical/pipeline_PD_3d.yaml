@@ -6,9 +6,9 @@ grid:
   azimuth_limits: [-0.45, 0.45]     # x-z fan half-angle [rad] (≈ ±26°)
   elevation_limits: [-0.45, 0.45]   # y-z fan half-angle [rad]
   zlims: [0.01, 0.11]               # on-axis depth range [m]
-  n_radial: 160                     # samples along each ray (~depth)
-  n_azimuth: 64                     # rays in the x-z plane
-  n_elevation: 64                   # rays in the y-z plane
+  n_radial: 200                     # samples along each ray (~depth, 0.5 mm)
+  n_azimuth: 80                     # rays in the x-z plane
+  n_elevation: 80                   # rays in the y-z plane
 
 parameters:
   grid_type: polar
@@ -25,7 +25,7 @@ pipeline:
     - name: envelope_detect
     - name: tissue_highpass       # custom op: slow-time high-pass (wall) filter
       params:
-        cutoff_hz: 50.0
+        cutoff_hz: 100.0
         frame_rate_hz: 4000.0
         transition_hz: 10.0
     - name: power_doppler         # custom op: sum of squared envelope over slow time

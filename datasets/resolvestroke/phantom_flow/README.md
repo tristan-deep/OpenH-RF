@@ -67,14 +67,17 @@ beamforming research (RFP task group 6.2, Blood Flow).
 ## Dataset Characterization
 
 - Data collection method: Phantom (CIRS 769 + ATS523A flow phantom with microbubble contrast agent)
-- Labeling method: Per-frame clip label (time offset relative to end-of-baseline),
-  stored in `metadata/annotations/label` (one of the five clip names above).
+- Labeling method: Automatic, no manual annotation. The per-voxel tube mask comes from
+  the known phantom geometry; the reference maps (`mvi`, radial velocities) are generated
+  by SYLVER's processing pipeline from the complete bolus passage (see
+  [Computed References](#computed-references)). Per-frame clip labels
+  (`metadata/annotations/label`, one of the five clip names above) are assigned from
+  the acquisition time relative to the end-of-baseline marker.
 - Acquisition system: SYLVER (Resolve Stroke's ultrasound device). 32×32 matrix
   probe, 0.50 mm pitch, 0.30 mm kerf; transmit center frequency ≈ 2.031 MHz, sound
   speed 1540 m/s. Diverging-wave transmits; receive sub-apertures flattened into 256
   virtual elements. Channel data is DDC (baseband) IQ, so `sampling_frequency`
   (≈ 2.031 MHz) is the post-decimation IQ rate and equals `demodulation_frequency`.
-  This is not an RF Nyquist rate (`n_ch = 2`, complex I/Q).
 
 ## Dataset Format
 
@@ -91,8 +94,8 @@ rather than a second track because zea uses a single global `n_frames`: a
 single-frame reference map cannot share that dimension with the per-frame
 `metadata/annotations/label` (20000), so a reference track fails spec validation.
 
-Originally written with `zea.File.create` (zea v0.1.1), validated `compliant: true` against
-`validate_zea_spec.py`. `data/raw_data` is DDC IQ (last axis [I, Q]). The hardware
+The file is in the zea HDF5 format, root `zea_version` 0.1.6, validated `compliant: true` against `validate_zea_spec.py`.
+`data/raw_data` is DDC IQ (last axis [I, Q]). The hardware
 time-gain compensation is baked into `raw_data`; `scan/tgc_gain_curve` is the applied
 (non-linear) gain per axial sample; divide by it to recover true channel amplitudes.
 The reconstruction scripts divide `raw_data` by this curve before beamforming (the
@@ -141,30 +144,46 @@ transmit, `reconstruct.py` beamforms on polar (sector) grids and renders two
 perpendicular sector B-modes, the x-z plane (y = 0) and the y-z plane (x = 0), side
 by side:
 
-![Reference B-mode (two perpendicular sectors)](phantom_flow_bmode.png)
+![Reference B-mode (two perpendicular sectors)](../assets/phantom_flow_bmode.png)
 
 Run: `uv run --project /path/to/OpenH-RF python reconstruct.py`
 
 ### Power-Doppler reconstruction (derived product)
 
 `reconstruct_PD_3d.py` (config `pipeline_PD_3d.yaml`) demonstrates a flow/contrast
-view. For each clip it beamforms the frame stack onto a real 3D polar sector volume
-(radius × azimuth × elevation), applies a slow-time high-pass (wall) filter to
-suppress stationary tissue, and integrates power Doppler, then displays x-z and y-z
-maximum-intensity projections (MIPs) for all five clips. The wall filter and
+view. For each clip it beamforms all 4000 frames, in blocks of 250, onto a real 3D
+polar sector volume (radius × azimuth × elevation), applies a 100 Hz slow-time
+high-pass (wall) filter to suppress stationary tissue, and integrates power Doppler
+(sum of the squared envelope over the frames), then displays x-z and y-z
+maximum-intensity projections (MIPs) for all five clips in dB relative to the maximum
+over the clips (-25 to -5 dB, gamma 1.25, `hot` colormap), with the reference `mvi`
+map of the same file in the last column for comparison. The wall filter and
 power-Doppler integration are custom `zea` pipeline ops registered in the script
-(`tissue_highpass`, `power_doppler`).
+(`tissue_highpass`, `power_doppler`). The hardware TGC stored in `raw_data` is kept.
 
-![Power-Doppler 3D MIP montage](phantom_flow_PD_montage.png)
+![Power-Doppler 3D MIP montage with reference mvi](../assets/phantom_flow_PD_montage.png)
 
-Run: `uv run --project /path/to/OpenH-RF python reconstruct_PD_3d.py`
+Run (a GPU is strongly recommended: about 14 min per acquisition with `uv sync --extra gpu`,
+hours with the CPU-only JAX of the plain `uv sync`):
+
+```bash
+uv run --project /path/to/OpenH-RF python reconstruct_PD_3d.py
+```
 
 ## Computed References
 
 Reference maps derived from the SYLVER processed exam of this acquisition, stored
-in `custom/computed_references/` (read via `zea.File(...).custom`). All share one
+in `custom/computed_references/` (read via
+`zea.File(...).dataset("custom/computed_references/<name>")`). All share one
 0.6 mm Cartesian grid `(192, 171, 171)`; the `coordinates` array gives each voxel's
 `[x, y, z]` in metres.
+
+The reference maps were computed by SYLVER's proprietary processing pipeline from
+the complete bolus passage, not from the five 1 s clips released here. They are
+therefore not reproducible from the released frames, and are provided as reference
+targets, for instance for learning-based reconstruction, microbubble-flow or perfusion
+estimation from the channel data. They are a device output, not a clinically validated
+ground truth. `tube_mask` is the known phantom geometry and is an actual ground truth.
 
 | Field | dtype | Unit | Description |
 |---|---|---|---|
@@ -187,7 +206,7 @@ two orthogonal maximum-intensity projections (x-z on top, y-z below) on the true
 Cartesian geometry: `mvi` in magma, the velocities in a symmetric blue-white-red
 map (±0.76 m/s), and `tube_mask` as discrete labels (⌀4 mm, ⌀2 mm):
 
-![Computed reference maps montage](phantom_flow_references_montage.png)
+![Computed reference maps montage](../assets/phantom_flow_references_montage.png)
 
 Run: `uv run --project /path/to/OpenH-RF python display_references.py`
 

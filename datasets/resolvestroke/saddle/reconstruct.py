@@ -33,63 +33,62 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from zea import Config, File, Pipeline
 
 HERE = Path(__file__).parent
-# Datasets live under data/; fall back to a file sitting next to the script.
-_HDF5 = "hf://nvidia/OpenH-RF/resolvestroke/saddle/data/PMP01.hdf5"
-DEFAULT_INPUT = _HDF5[0] if _HDF5 else None
 CONFIG = HERE / "pipeline.yaml"
+HF_DIR = "hf://nvidia/OpenH-RF/resolvestroke/saddle/data"
 
 # --- Inputs -----------------------------------------------------------------
-# Defaults stream straight from the published corpus. Swap any of these for a
-# local path to run against your own copy.
-INPUT = "hf://nvidia/OpenH-RF/resolvestroke/saddle/data/PMP01.hdf5"
-OUTPUT = None  # Output PNG path (default: outputs/<input-stem>_bmode.png)
+# Defaults stream straight from the published corpus. Any of the 21 files works:
+# the 20 clinical acquisitions (SP01-Left-1 ... SP10-Right) or the phantom PMP01.
+# Swap INPUT for a local path to run against your own copy.
+INPUT = f"{HF_DIR}/PMP01.hdf5"
+OUTPUT = None  # Output PNG path (default: <input-stem>_bmode.png next to this script)
 
 
-def main():
-    # Default output goes to outputs/ next to the script; create it if needed.
-    out_path = OUTPUT or (HERE / "outputs" / f"{Path(INPUT).stem}_bmode.png")
-    out_path.parent.mkdir(parents=True, exist_ok=True)
+def reconstruct(input_path, config, pipeline=None):
+    """Beamform the single saddle frame of ``input_path`` with ``config``.
 
-    zea.init_device()
-    config = Config.from_path(str(CONFIG))
-
-    with File(str(INPUT)) as f:
+    Returns:
+        (image, grid, grid_type): ``image`` is the log-compressed B-mode
+        (n_radial, n_angular) for a polar grid; ``grid`` the matching Cartesian
+        (x, y, z) sample positions in metres.
+    """
+    with File(str(input_path)) as f:
         parameters = f.load_parameters(**config.parameters)
         if parameters.grid_type == "polar":
             # For a diverging wave the polar-grid apex is the virtual source
-            # (|focus_distances|); derive it unless pipeline.yaml pins it.
+            # (|focus_distances|); derive it unless pipeline.yaml pins it. zea takes
+            # zlims as on-axis depth and adds the apex to the radii itself.
             apex = config.parameters.get("distance_to_apex")
             if apex is None:
                 focus = float(np.abs(np.ravel(parameters.focus_distances)[0]))
                 apex = focus if focus > 0 else 0.0
-            # zea measures the polar near-bound as radius-from-apex, so shift the
-            # near zlim by the apex → the configured zlims are true on-axis depth.
-            z0, z1 = (float(v) for v in config.parameters["zlims"])
-            overrides = {
-                **config.parameters,
-                "distance_to_apex": apex,
-                "zlims": (z0 + apex, z1),
-            }
-            parameters = f.load_parameters(**overrides)
+            parameters = f.load_parameters(**{**config.parameters, "distance_to_apex": apex})
         raw = f.data.raw_data[0:1]  # single frame → (1, n_tx, n_ax, n_el, n_ch)
 
-    print(f"raw_data shape : {raw.shape}")
-    print(f"grid           : {parameters.grid.shape}  ({parameters.grid_type})")
-
-    pipeline = Pipeline.from_config(config)
+    pipeline = pipeline or Pipeline.from_config(config)
     inputs = pipeline.prepare_parameters(parameters)
     outputs = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
     image = np.asarray(outputs[pipeline.output_key])[0]
+    grid = np.asarray(parameters.grid)  # (..., 3), last axis (x, y, z) in metres
+    return image, grid, parameters.grid_type
+
+
+def main():
+    out_path = Path(OUTPUT) if OUTPUT else HERE / f"{Path(INPUT).stem}_bmode.png"
+
+    zea.init_device()
+    config = Config.from_path(str(CONFIG))
+    image, grid, grid_type = reconstruct(INPUT, config)
+    print(f"grid           : {grid.shape}  ({grid_type})")
 
     # Display dynamic range from pipeline.yaml (default 40 dB).
     dr = config.parameters.get("dynamic_range", [-40, 0])
     vmin, vmax = float(dr[0]), float(dr[1])
 
-    grid = np.asarray(parameters.grid)  # (..., 3), last axis (x, y, z) in metres
     zea.visualize.set_mpl_style()
     fig, ax = plt.subplots(figsize=(7, 7))
 
-    if parameters.grid_type == "polar":
+    if grid_type == "polar":
         # Scan-convert: place each (radial, angular) sample at its Cartesian (x, z).
         x_mm, z_mm = grid[..., 0] * 1e3, grid[..., 2] * 1e3
         pm = ax.pcolormesh(x_mm, z_mm, image, cmap="gray", vmin=vmin, vmax=vmax, shading="auto")

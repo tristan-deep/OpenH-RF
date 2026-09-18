@@ -17,14 +17,14 @@ import matplotlib
 
 matplotlib.use("Agg")
 
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import ListedColormap
+from zea import File
 
-HERE = Path(__file__).parent
-_HDF5 = sorted(HERE.glob("*.hdf5"))
-DEFAULT_INPUT = _HDF5[0] if _HDF5 else HERE / "phantom_flow.hdf5"
+# --- Inputs -----------------------------------------------------------------
+# Defaults stream straight from the published corpus; override with --input.
+DEFAULT_INPUT = "hf://nvidia/OpenH-RF/resolvestroke/phantom_flow/phantom_flow.hdf5"
 
 # name, colormap, contrast limits (None = auto), signed (diverging max-|.| MIP)
 # Columns left -> right; mask first.
@@ -51,15 +51,19 @@ def mip(vol, axis, signed):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--input", type=Path, default=DEFAULT_INPUT)
+    ap.add_argument("--input", default=DEFAULT_INPUT, help="zea HDF5 (hf:// or local path)")
     ap.add_argument("--output", type=Path, default=None)
     args = ap.parse_args()
-    out = args.output or args.input.with_name("phantom_flow_references_montage.png")
+    out = args.output or Path("phantom_flow_references_montage.png")
 
-    with h5py.File(str(args.input), "r") as f:
-        g = f.custom.computed_references
-        coords = np.asarray(g["coordinates"][:])  # (nz, ny, nx, 3) = [x, y, z] m
-        data = {name: np.asarray(g[name][:]).astype(np.float32) for name, *_ in MAPS}
+    with File(args.input) as f:
+        # file.dataset(key) is zea's concurrent-read path (file[key] would read serially).
+        ref = "custom/computed_references"
+        coords = np.asarray(f.dataset(f"{ref}/coordinates")[...])  # (nz, ny, nx, 3) = [x, y, z] m
+        data = {
+            name: np.asarray(f.dataset(f"{ref}/{name}")[...]).astype(np.float32)
+            for name, *_ in MAPS
+        }
 
     x_mm = coords[0, 0, :, 0] * 1e3
     y_mm = coords[0, :, 0, 1] * 1e3
@@ -100,7 +104,9 @@ def main():
     axes[0, 0].set_ylabel("x-z MIP\nz [mm]")
     axes[1, 0].set_ylabel("y-z MIP\nz [mm]")
 
-    fig.suptitle(f"Computed reference maps — {args.input.name}", fontsize=13, fontweight="bold")
+    fig.suptitle(
+        f"Computed reference maps — {Path(args.input).name}", fontsize=13, fontweight="bold"
+    )
     fig.savefig(str(out), dpi=130)
     print(f"Saved: {out}")
 

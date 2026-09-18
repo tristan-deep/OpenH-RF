@@ -29,7 +29,8 @@ acquisition contains, alongside the multi-thousand-frame contrast-enhanced
 ultrasound (CEUS) sequence, one
 wide-angle diverging-wave frame (the *saddle* sequence: `x_ang` −24°…+24° in nine
 steps, no elevation steering, cylindrical elevation focus) received on the full
-1024-element aperture. Beamformed, this single frame gives a sector B-mode of the
+1024-element aperture through four consecutive 256-element receive events per
+transmit. Beamformed, this single frame gives a sector B-mode of the
 imaging plane: the structural reference view acquired at the same probe placement
 as the contrast (CEUS) recording.
 
@@ -73,18 +74,17 @@ flow/perfusion datasets (OpenH-RF request-for-proposals task group 6.2, Blood Fl
   matrix probe, 0.50 mm pitch, 0.30 mm kerf; transmit center frequency ≈ 2.031 MHz,
   sound speed 1540 m/s. The *saddle* sequence transmits 9 diverging waves steered
   `x_ang` −24°…+24° (6° steps), `y_ang = 0`, virtual source at −50 mm, with an
-  elevation (saddle) focus at 120 mm. Receive is the full probe, packed as 4
-  sub-apertures of 256 elements each and flattened into 1024 virtual elements
+  elevation (saddle) focus at 120 mm. The system receives 256 channels at a time,
+  so each transmit is fired four times in a row, once per 256-element receive
+  sub-aperture; the four receptions are stacked into 1024 virtual elements
   (element index = `aperture·256 + element`, matching PyCompute's `apElemPos`
-  ordering). Channel data is digital down-converted (DDC) baseband IQ, so `sampling_frequency`
-  (≈ 2.031 MHz) is the post-decimation IQ rate and equals `demodulation_frequency`;
-  it is not an RF Nyquist rate (`n_ch = 2`, complex I/Q).
+  ordering), giving the full probe on receive. Channel data is digital down-converted (DDC) baseband IQ, so `sampling_frequency`
+  (≈ 2.031 MHz) is the post-decimation IQ rate and equals `demodulation_frequency`.
 
 ## Dataset Format
 
 One zea HDF5 file per dataset under `data/`, each holding a single frame of DDC IQ
-channel data (`data/raw_data`, last axis `[I, Q]`). Originally written with `zea.File.create`
-(zea v0.1.1), validated `compliant: true` against `validate_zea_spec.py`.
+channel data (`data/raw_data`, last axis `[I, Q]`), in the zea HDF5 format, root `zea_version` 0.1.6, validated `compliant: true` against `validate_zea_spec.py`.
 
 Files are named `<sp_id>[-<side>][-<n>].hdf5` (anonymized subject code, imaging
 side, and a sequential index when a subject/side has more than one acquisition);
@@ -141,17 +141,18 @@ The montage below shows the reconstruction of all 21 files, one panel per datase
 The phantom (PMP01) shows a regular column of point targets, which checks the depth
 scaling and geometry.
 
-![Saddle-array B-modes for all 21 datasets](saddle_bmode_montage.png)
+![Saddle-array B-modes for all 21 datasets](../assets/saddle_bmode_montage.png)
 
 Set up the OpenH-RF environment once (clone <https://github.com/open-h/OpenH-RF>
 and run `uv sync` in it), then reconstruct any file:
 
 ```
-uv run --project /path/to/OpenH-RF python reconstruct.py --input data/<file>.hdf5
+uv run --project /path/to/OpenH-RF python reconstruct.py
 ```
 
-The B-mode PNG is written to `outputs/<file>_bmode.png` (override with `--output`).
-With no `--input`, the first file under `data/` is used.
+`reconstruct.py` streams `PMP01.hdf5` from the Hub by default; set `INPUT` at the top
+of the script to another of the 21 files (or a local path). The B-mode PNG is written
+next to the script as `<file>_bmode.png`.
 
 ## Ethical Considerations
 

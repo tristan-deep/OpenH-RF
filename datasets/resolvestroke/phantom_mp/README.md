@@ -62,14 +62,12 @@ known target structures.
   speed 1540 m/s. Diverging-wave transmits; receive sub-apertures flattened into 256
   virtual elements. Channel data is DDC (baseband) IQ, so `sampling_frequency`
   (≈ 2.031 MHz) is the post-decimation IQ rate and equals `demodulation_frequency`.
-  This is not an RF Nyquist rate (`n_ch = 2`, complex I/Q).
 
 ## Dataset Format
 
 Single zea HDF5 file (`phantom_mp.hdf5`), one track holding the raw channel data
-and scan parameters. Originally written with `zea.File.create` (zea v0.1.1), validated
-`compliant: true` against `validate_zea_spec.py`. `data/raw_data` is DDC IQ (last
-axis [I, Q]). The hardware time-gain compensation is baked into `raw_data`;
+and scan parameters, in the zea HDF5 format, root `zea_version` 0.1.6, validated `compliant: true` against `validate_zea_spec.py`.
+`data/raw_data` is DDC IQ (last axis [I, Q]). The hardware time-gain compensation is baked into `raw_data`;
 `scan/tgc_gain_curve` is the applied (non-linear) gain per axial sample; divide by
 it to recover true channel amplitudes. `reconstruct.py` divides `raw_data` by this
 curve before beamforming (the `zea.Pipeline` itself stays standard; the reversal is
@@ -116,7 +114,7 @@ transmit, `reconstruct.py` beamforms on polar (sector) grids and renders two
 perpendicular sector B-modes, the x-z plane (y = 0) and the y-z plane (x = 0), side
 by side:
 
-![Reference B-mode (two perpendicular sectors)](phantom_mp_bmode.png)
+![Reference B-mode (two perpendicular sectors)](../assets/phantom_mp_bmode.png)
 
 Run: `uv run --project /path/to/OpenH-RF python reconstruct.py`
 

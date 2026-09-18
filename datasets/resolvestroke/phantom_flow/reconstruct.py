@@ -37,8 +37,6 @@ from zea import Config, File, Pipeline
 from zea.beamform.pixelgrid import polar_pixel_grid
 
 HERE = Path(__file__).parent
-_HDF5 = "hf://nvidia/OpenH-RF/resolvestroke/phantom_flow/phantom_flow.hdf5"
-DEFAULT_INPUT = "hf://nvidia/OpenH-RF/resolvestroke/phantom_flow/phantom_flow.hdf5"
 CONFIG = HERE / "pipeline.yaml"
 
 # --- Inputs -----------------------------------------------------------------
@@ -80,11 +78,11 @@ def build_sector_grids(config, parameters):
 
     polar_limits = tuple(float(v) for v in p["polar_limits"])
     z0, z1 = (float(v) for v in p["zlims"])
-    # polar_pixel_grid measures radius from the apex, so offset the near bound by
-    # the apex -> the configured zlims are true on-axis depth.
+    # polar_pixel_grid takes zlims as on-axis depth from the transducer face and adds
+    # distance_to_apex to the radii itself, so the configured zlims go in unchanged.
     grid_xz = polar_pixel_grid(
         polar_limits,
-        (z0 + apex, z1),
+        (z0, z1),
         num_radial_pixels=int(p["grid_size_z"]),
         num_polar_pixels=int(p["grid_size_x"]),
         distance_to_apex=apex,
