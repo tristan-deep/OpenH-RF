@@ -27,7 +27,9 @@ The data set consists of clinical ultrasound channel data acquired with a Veraso
 
 ## Dataset Contributor(s)
 
-- Prof. Yonina Eldar's SAMPL Lab Group, Faculty of Mathematics and Computer Science, Weizmann Institute of Science, Rehovot, Israel
+- Yonina C. Eldar <yonina.eldar@weizmann.ac.il> (SAMPL Lab, Weizmann Institute of Science)
+- Adi Wegerhoff <adi.wegerhoff@weizmann.ac.il> (SAMPL Lab, Weizmann Institute of Science)
+- Ditza Auerbach <ditza.auerbach@weizmann.ac.il> (SAMPL Lab, Weizmann Institute of Science)
 
 ## Dataset Creation Date
 
