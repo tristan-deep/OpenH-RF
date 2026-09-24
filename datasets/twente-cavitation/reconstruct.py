@@ -7,10 +7,11 @@ Passive acoustic map (PAM) reconstruction of one cavitation acquisition.
 
 This is a *passive* acquisition: the L11-4v never transmits (the file records
 ``tx_apodizations`` as all zeros); a separate 2.25 MHz single-element transducer
-insonifies the tube with 444 us pulses and the array only receives. A standard
-pulse-echo reconstruction fails twice over -- the all-zero ``tx_apodizations``
-make the transmit-delay model return inf, and the pulse-echo delays sample each
-pixel before the cavitation signal has reached the array.
+insonifies with long pulses and the array only receives. A standard
+pulse-echo reconstruction fails twice over because there is no transmit signal
+-- the all-zero ``tx_apodizations`` make the transmit-delay model return inf,
+and the pulse-echo delays sample each pixel before the cavitation signal has
+reached the array.
 
 Both are fixed with two parameter overrides, with no custom operations needed:
 ``tx_apodizations`` -> ones restores a valid delay computation, and
@@ -52,17 +53,16 @@ from zea.ops import (
 )
 
 HERE = Path(__file__).parent
-CONFIG = HERE / "pipeline.yaml"
-HF_CONFIG = "hf://nvidia/OpenH-RF/twente-cavitation/pipeline.yaml"
 
-
-# Grid at half-wavelength sampling over the full aperture.
+# 0.1 mm isotropic pixels over a 20 x 30 mm field of view around the tube. On a
+# CPU, a 50 x 75 grid gives a reasonable map much faster.
 PARAMETERS = {
-    "grid_size_x": 387,
-    "grid_size_z": 577,
-    "xlims": [-0.019, 0.019],
-    "zlims": [0.002, 0.060],
+    "grid_size_x": 200,
+    "grid_size_z": 300,
+    "xlims": [-0.010, 0.010],
+    "zlims": [0.010, 0.040],
     "apply_lens_correction": True,
+    "dynamic_range": [-20, 0],
 }
 
 # Sampling instants t_c within the 444 us insonification window. Each run of
@@ -77,10 +77,13 @@ BEAMFORMER_KWARGS = {"subarray_size": 32, "diagonal_loading": 1e-2}
 # --- Inputs -----------------------------------------------------------------
 # Defaults stream straight from the published corpus. Swap any of these for a
 # local path to run against your own copy.
-ZEA_FILE = "hf://nvidia/OpenH-RF/twente-cavitation/data/cavitation_bubbles_10kPa_01mL_per_min.hdf5"
+ZEA_FILE = (
+    "hf://nvidia/OpenH-RF/twente-cavitation/data/cavitation_bubbles_1000kPa_01mL_per_min.hdf5"
+)
+CONFIG = HERE / "pipeline.yaml"  # written by write_config(); this is what the run loads
+N_FRAMES = 10  # number of frames to average
 OUT = HERE / "assets" / f"{Path(ZEA_FILE).stem}.png"
-N_FRAMES = 20  # Number of frames to average
-DEVICE = "auto:1"  # Device to use (e.g. 'cpu', 'cuda:0', or 'auto:1')
+HF_CONFIG = "hf://nvidia/OpenH-RF/twente-cavitation/pipeline.yaml"  # where CONFIG is published
 
 
 def build_pipeline() -> Pipeline:
@@ -98,20 +101,23 @@ def build_pipeline() -> Pipeline:
     )
 
 
-def main():
-
-    zea.init_device(device=DEVICE, verbose=False)
-
-    # Build the pipeline in code and save it (with parameters) to pipeline.yaml,
-    # then load that YAML back in so the shipped YAML is exactly what runs.
-    pipeline = build_pipeline()
+def write_config(pipeline: Pipeline, path: Path) -> None:
+    """Serialize the pipeline and acquisition parameters to a YAML config file."""
     config = pipeline.to_config()
     config["parameters"] = PARAMETERS
-    config.to_yaml(str(CONFIG))
+    config.to_yaml(str(path))
+
+
+def main():
+    zea.init_device()
+
+    # Build the pipeline in code, save it (with parameters) to pipeline.yaml,
+    # then load that YAML back in so the shipped YAML is exactly what runs.
+    write_config(build_pipeline(), CONFIG)
     config = Config.from_path(str(CONFIG))
     pipeline = Pipeline.from_config(config)
 
-    with File(str(ZEA_FILE)) as f:
+    with File(ZEA_FILE) as f:
         parameters = f.load_parameters(**config.parameters)
         raw = f.data.raw_data[:N_FRAMES]  # (n_frames, n_tx, n_ax, n_el, 1)
 
@@ -133,18 +139,22 @@ def main():
     pam_db = keras.ops.convert_to_numpy(post(data=amplitude)["data"])
 
     zea.visualize.set_mpl_style()
-    extent_mm = [v * 1e3 for v in parameters.extent_imshow]
+    vmin, vmax = parameters.dynamic_range
     fig, ax = plt.subplots(figsize=(6, 8))
-    im = ax.imshow(np.clip(pam_db, -25, 0), extent=extent_mm, cmap="inferno")
+    im = ax.imshow(
+        np.clip(pam_db, vmin, vmax),
+        extent=parameters.extent_imshow * 1e3,
+        cmap="inferno",
+    )
     ax.set_xlabel("X (mm)")
     ax.set_ylabel("Z (mm)")
     cax = make_axes_locatable(ax).append_axes("right", size="5%", pad=0.05)
     fig.colorbar(im, cax=cax, label="dB")
-    Path(OUT).parent.mkdir(parents=True, exist_ok=True)
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(str(OUT), bbox_inches="tight", dpi=100)
     plt.close()
 
-    print(f"Saved          : {OUT}")
+    print(f"raw {raw.shape} -> PAM {pam_db.shape}; saved {OUT}")
 
 
 if __name__ == "__main__":

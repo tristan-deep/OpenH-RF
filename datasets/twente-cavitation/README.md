@@ -6,19 +6,27 @@ task_categories:
   - image-classification
 tags:
   - ultrasound
-  - rf                   
+  - rf
   - openh-rf
   - cavitation
 language:
   - en
 size_categories:
-  - 1K<n<10K                 
+  - 1K<n<10K
 ---
 
 # Twente Passive Cavitation Detection of Flowing Microbubbles
 
+![A passive acoustic map reconstructed from this dataset.](assets/hero.png)
+
+*Passive acoustic map of microbubbles cavitating in the flow channel, reconstructed from the raw channel data with one-way passive minimum-variance beamforming.*
+
 ## Dataset Description
-The collected data is for cavitation mapping of microbubbles, insonified with focused ultrasound at various pressures and flowrates. This data applicable to therapeutic ultrasound and local drug delivery in any part of the human body. The used sensor hardware is a Verasonics research system with an L11-4v transducer for recording the bubble response during the treatment. Insonification is done using a single element transducer at 2.25MHz. The insonification is done with a 1000 cycles long pulse at 2.25MHz, where the first and last 2 microseconds are used for ramping up and down the pressure. The pulse repetition frequency used is 20Hz, repeated 400 times.
+The collected data is for cavitation mapping of microbubbles, insonified with focused ultrasound at various pressures and flowrates. This data is applicable to therapeutic ultrasound and local drug delivery in any part of the human body. The used sensor hardware is a Verasonics research system with an L11-4v transducer for recording the bubble response during the treatment. Insonification is done using a single element transducer at 2.25MHz. The insonification is done with a 1000 cycles long pulse at 2.25MHz, where the first and last 2 microseconds are used for ramping up and down the pressure. The pulse repetition frequency used is 20Hz, repeated 400 times. The tube goes through the imaging plane of the L11-4v, and the transmitting single element transducer insonifies the tube from the side at 90 degrees. Both transducers are positioned to have their (elevation) focus aligned with the tube containing the microbubbles.
+
+![A top view schematic of the experimental setup.](assets/Schematic_setup.png)
+
+*Top view of the setup: the flow tube crosses the L11-4v imaging plane and the 2.25 MHz single-element transducer insonifies it from the side at 90 degrees.*
 
 ## Dataset Contributor(s)
 
@@ -51,7 +59,7 @@ Set `ZEA_FILE` at the top of the script to pick an acquisition and `N_FRAMES` to
 
 [zea v0.1.6](https://github.com/tue-bmd/zea)
 
-.zea file format. No preprocessing is applied.
+[zea file format](https://zea.readthedocs.io/en/latest/data-acquisition.html). No preprocessing is applied.
 
 ## Dataset Quantification
 
@@ -111,8 +119,11 @@ Files are named `cavitation_bubbles_<pressure>kPa_<flowrate>mL.hdf5`, where `<fl
 Only one phantom was used. This is a phantom made of PVCp with a single flow channel ~200 micrometer diameter. The used scanner is a Verasonics Vantage 256 with a L11-4v transducer.
 
 ## Data Validation
+The reconstruction pipeline is in `pipeline.yaml`. `reconstruct.py` is an example reconstruction of the data using the minimum variance (Capon) beamformer integrated in zea, with diagonal loading epsilon = 1e-2: the array only receives, so the transmit model is overridden and the chain aligns purely on receive curvature (one-way passive beamforming), averaging the envelope energy over sampling instants and frames. An example output from `cavitation_bubbles_1000kPa_01mL_per_min.hdf5` is [`assets/cavitation_bubbles_1000kPa_01mL_per_min.png`](assets/cavitation_bubbles_1000kPa_01mL_per_min.png). The script writes the map to `assets/<file>.png`. Usage:
 
-`reconstruct.py` reconstructs a passive acoustic map (PAM) with the `zea.Pipeline` in `pipeline.yaml`: the array only receives, so the transmit model is overridden and the chain aligns purely on receive curvature (one-way passive beamforming), averaging the envelope energy over sampling instants and frames. An example output is [`assets/cavitation_bubbles_10kPa_01mL_per_min.png`](assets/cavitation_bubbles_10kPa_01mL_per_min.png).
+```bash
+python reconstruct.py
+```
 
 ## Known Issues
 No known issues.
