@@ -25,7 +25,7 @@ size_categories:
 
 ![Vector flow cineloop from Acq0.hdf5](assets/Acq0.gif)
 
-*Cine loop of [`data/Acq0.hdf5`](https://huggingface.co/datasets/nvidia/OpenH-RF/blob/main/waterloo-largeartery/data/Acq0.hdf5), rendered from provided velocity fields.*
+*Cine loop of [`data/Acq0.hdf5`](https://huggingface.co/datasets/nvidia/OpenH-RF/blob/main/waterloo-femoralvein/data/Acq0.hdf5), rendered from provided velocity fields.*
 
 ## Dataset Description
 
@@ -67,8 +67,8 @@ The acquisitions can be processed with the `pipeline.yaml` definition in this fo
 
 ```bash
 zea process \
-  --dataset hf://nvidia/OpenH-RF/waterloo-largeartery/data/Acq0.hdf5 \
-  --config hf://nvidia/OpenH-RF/waterloo-largeartery/pipeline.yaml \
+  --dataset hf://nvidia/OpenH-RF/waterloo-femoralvein/data/Acq0.hdf5 \
+  --config hf://nvidia/OpenH-RF/waterloo-femoralvein/pipeline.yaml \
   --n-frames 1 \
   --save-as png
 ```
