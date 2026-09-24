@@ -22,9 +22,9 @@ size_categories:
 
 # UW-Carotid RF
 
-![Reconstructed cineloop from Acq90.hdf5](assets/Acq90.gif)
+![Reconstructed cineloop from Acq1.hdf5](assets/Acq1.gif)
 
-*Cine loop of [`data/Acq90.hdf5`](https://huggingface.co/datasets/nvidia/OpenH-RF/blob/main/waterloo-carotid/data/Acq90.hdf5), reconstructed from the raw channel data with the `pipeline.yaml` in this folder.*
+*Cine loop of [`data/Acq1.hdf5`](https://huggingface.co/datasets/nvidia/OpenH-RF/blob/main/waterloo-carotid/data/Acq1.hdf5), rendered using provided velocity fields.*
 
 ## Dataset Description
 
@@ -35,7 +35,7 @@ Raw RF frames (plane wave) and vector flow profiles of the human carotid arterie
 - Hassan Nahas <hassan.nahas@uwaterloo.ca>
 - Jason Y. -H. Hsu <jason.hsu@uwaterloo.ca>
 - Theresa Gu <theresa.gu@uwaterloo.ca>
-- Adrian J. Y. Chee
+- Adrian J. Y. Chee <adrian.chee@uwaterloo.ca>
 - Alfred C. H. Yu <alfred.yu@uwaterloo.ca>
 - LITMUS, University of Waterloo
 
@@ -65,7 +65,7 @@ The acquisitions can be processed with the `pipeline.yaml` definition in this fo
 
 ```bash
 zea process \
-  --dataset hf://nvidia/OpenH-RF/waterloo-carotid/data/Acq90.hdf5 \
+  --dataset hf://nvidia/OpenH-RF/waterloo-carotid/data/Acq1.hdf5 \
   --config hf://nvidia/OpenH-RF/waterloo-carotid/pipeline.yaml \
   --n-frames 1 \
   --save-as png
@@ -106,24 +106,13 @@ Per-sample contents of the converted HDF5:
 
 All `coordinates` arrays are per-pixel Cartesian positions in meters, last axis `[x, y, z]` (y = 0 for 2-D maps).
 
-## Shipped Example Acquisitions
-
-Two example acquisitions are included under `hdf5/` as a representative subset of the full dataset:
-
-| File | Subject | Anatomy | View | Condition | Frames |
-|---|---|---|---|---|---|
-| `hdf5/Acq0.hdf5` | 1 | Common Carotid Artery | Longitudinal | Baseline | 500 |
-| `hdf5/Acq62.hdf5` | 1 | Internal Carotid Artery | Cross-sectional | Baseline | 500 |
-
-Each common carotid artery frame comprises 2 steered plane-wave transmits (`n_tx = 2`), 2048 axial samples, and 128 receive channels. Each internal carotid artery frame comprises 1 steered plane-wave transmits (`n_tx = 1`), 1536 axial samples, and 128 receive channels.
-
-The frame count in these examples is truncated for demonstration; full acquisitions contain the frame counts described below.
-
 ## Dataset Quantification
 
 **Current OpenH-RF release:** 93 HDF5 files; 6.90 TB (6,902,089,770,179 bytes) stored; root `zea_version` **0.1.4**. Sizes include all HDF5 contents and use decimal units (MB = 10^6 bytes, GB = 10^9 bytes, TB = 10^12 bytes), not decoded-array memory or original-source download sizes.
 
-Data was collected from 8 participants, spanning carotid arteries (Common Carotid Artery and Internal Carotid Artery) in both longitudinal and cross-sectional views. In total, the dataset consists of 93 acquisitions, containing 30,000 or 36,000 frames of raw RF data per acquisition (47 acquisitions of 30,000 frames and 46 of 36,000 frames).
+Data was collected from 8 participants, spanning carotid arteries (Common Carotid Artery and Internal Carotid Artery) in both longitudinal and cross-sectional views. In total, the dataset consists of 93 acquisitions, containing 30,000 or 36,000 frames of raw RF data per acquisition (47 acquisitions of 30,000 frames and 46 of 36,000 frames). 
+Each common carotid artery frame comprises 2 steered plane-wave transmits (`n_tx = 2`), 2048 axial samples, and 128 receive channels. Each internal carotid artery frame comprises 1 steered plane-wave transmits (`n_tx = 1`), 1536 axial samples, and 128 receive channels.
+
 
 ## Subject Metadata
 
@@ -150,10 +139,10 @@ Data was collected from 8 participants, spanning carotid arteries (Common Caroti
    - **Dual Angle-Compounding:** Beamforming for B-mode and power Doppler is performed twice with opposite receive angles ($+15^{\circ}$ and $-15^{\circ}$). The final high-resolution beamformed image (HRI) is the average of these two acquisitions:
      $$HRI = \frac{HRI_{+15^{\circ}} + HRI_{-15^{\circ}}}{2}$$
    - **Reconstruction Grid:** Cartesian coordinates mapped by a `PixelMap` representing a lateral range of $[-19, 19]\text{ mm}$ and axial depth of $[0, 30]\text{ mm}$ at $0.1\text{ mm}$ spatial resolution.
-3. **Clutter Filtering:** Clutter filtering is performed on the beamformed ensemble using a high-pass wall filter (normalized cut-off frequencies of 0.1 and 0.15, filter length of 100).
+3. **Clutter Filtering:** Clutter filtering is performed on the beamformed ensemble using a high-pass wall filter (normalized cut-off frequencies of 0.1 and 0.15, attenuation of 100 db).
 4. **Multi-Angle Doppler Frequency Estimation:** Angle-specific Doppler frequencies are computed using an ensemble size of 64 frames with a step size of 1.
-   - For acquisitions with 2 tx angles, we used the following Tx-Rx angles: Tx: [-10, -10, 10, 10]; Rx: [-10, 10, -10, 10]
-   - For acquisitions with 1 tx angle: Tx: [-10, -10, -10]; Rx: [-10, 0, 10]
+   - For acquisitions with 2 tx angles, we used the following Tx-Rx angles: Tx: [-10°, -10°, 10°, 10°]; Rx: [-10°, 10°, -10°, 10°]
+   - For acquisitions with 1 tx angle: Tx: [-10°, -10°, -10°]; Rx: [-10°, 0°, 10°]
 5. **Vector Doppler Velocity Estimation:** Lateral ($v_x$) and axial ($v_z$) velocity components are computed from the multi-angle Doppler frequency estimates using least-squares estimation.
 
 The full LITMUS processing pipeline (GPU DAS beamforming + multi-angle vector Doppler) is documented by the contributors. That documentation is provided for provenance and reproducibility; it depends on the LITMUS core Python package and the raw acquisition frames, so it is not runnable from this folder alone.

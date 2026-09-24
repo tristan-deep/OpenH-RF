@@ -63,12 +63,12 @@ PARAMETERS = {
 # --- Inputs -----------------------------------------------------------------
 # Defaults stream straight from the published corpus. Swap any of these for a
 # local path to run against your own copy.
-ZEA_FILE = "hf://nvidia/OpenH-RF/waterloo-carotid/data/Acq90.hdf5"
+ZEA_FILE = "hf://nvidia/OpenH-RF/waterloo-carotid/data/Acq1.hdf5"
 CONFIG = HERE / "pipeline.yaml"
 OUT = HERE / "assets" / "reconstruct_output.png"
 HF_CONFIG = "hf://nvidia/OpenH-RF/waterloo-carotid/pipeline.yaml"
-FRAME = 100
-POWER_THRESHOLD = 38.0  # Power Doppler mask threshold (dB); this data peaks near 46
+FRAME = 250
+POWER_THRESHOLD = 55.0  # Power Doppler mask threshold (dB)
 
 
 def draw_velocity_field(

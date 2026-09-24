@@ -23,9 +23,9 @@ parameters:
     - 0.019
     zlims:
     - 0.01
-    - 0.045
+    - 0.06
     grid_size_x: 381
-    grid_size_z: 451
+    grid_size_z: 501
     dynamic_range:
     - -50
     - 0
