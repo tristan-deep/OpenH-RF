@@ -51,15 +51,16 @@ PULSE_NAMES = (
 )
 PULSE_TO_TRACK = {pulse: index for index, pulse in enumerate(PULSE_NAMES)}
 
+
 # --- Inputs -----------------------------------------------------------------
 # Defaults stream straight from the published corpus. Swap any of these for a
 # local path to run against your own copy.
+PULSE = "REF"  # Pulse label to reconstruct, for example REF, DPT, or L1.7
 PATH = "hf://nvidia/OpenH-RF/twente-microbubblesim/data/Monodispers/RFDATA00002.hdf5"
 # Pipeline YAML to load; otherwise the selected track's saved pipeline
-CONFIG_PATH = "hf://nvidia/OpenH-RF/twente-microbubblesim/pipeline/pipeline_track_0_DPT.yaml"
-PULSE = "DPT"  # Pulse label to reconstruct, for example REF, DPT, or L1.7
+CONFIG_PATH = f"hf://nvidia/OpenH-RF/twente-microbubblesim/pipeline/pipeline_track_{PULSE_TO_TRACK[PULSE]}_{PULSE}.yaml"
 # (must match the track in CONFIG_PATH; track 0 is DPT)
-OUT = None  # Output PNG filename; otherwise uses population and pulse names
+OUT = None  # Output PNG filename + Path; otherwise uses population and pulse names
 DYNAMIC_RANGE = (-30.0, 0.0)  # Display dynamic range in dB
 SHOW_BUBBLES = True  # Draw the red bubble ground-truth overlay
 
@@ -84,7 +85,7 @@ def default_config_path(pulse: str) -> Path:
 
 def default_output_path(path: Path, pulse: str) -> Path:
     population = population_name(path)
-    return HERE / "assets" / f"{population}_{pulse}.png"
+    return HERE / "output" / f"{population}_{pulse}.png"
 
 
 def main() -> None:

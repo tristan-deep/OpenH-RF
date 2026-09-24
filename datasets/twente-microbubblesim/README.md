@@ -20,7 +20,11 @@ size_categories:
 
 ## Dataset Description
 
-This synthetic 3-D ultrasound dataset contains nonlinear radiofrequency (RF) responses from microbubble contrast agents for cardiovascular-flow imaging. It was generated to study the effect of ultrasound transmit-waveform shape on RF signals and deep-learning methods for microbubble super-resolution. It contains simulated data, not clinical, phantom, or in-vivo animal data.
+This synthetic 3-D ultrasound dataset contains nonlinear radiofrequency (RF) responses from microbubble contrast agents for cardiovascular-flow imaging. It was generated to study the effect of ultrasound transmit-waveform shape on RF signals and deep-learning methods for microbubble super-resolution. It contains exclusively simulated data.
+
+![alt text](./assets/pulses_waveform.png)
+The 12 different driving-pulse waveforms used in this simulated dataset.
+
 
 ## Dataset Contributor(s)
 
@@ -135,11 +139,11 @@ All 500 HDF5 files were checked for the expected zea container structure, 12 ord
 
 <table>
   <tr>
-    <td align="center"><strong>Monodispers — REF S23.7</strong><br>
-      <img src="REF_monodisperse.png" alt="Monodispers REF S23.7 image" width="280">
+    <td align="center"><strong>Monodispers — REF</strong><br>
+      <img src="./assets/REF_monodisperse.png" alt="Monodispers REF S23.7 image" width="280">
     </td>
-    <td align="center"><strong>SonoVue — REF S23.7</strong><br>
-      <img src="REF_sonovue.png" alt="SonoVue REF S23.7 image" width="280">
+    <td align="center"><strong>Monodispers — S3.4</strong><br>
+      <img src="./assets/S3.4_monodisperse.png" alt="SonoVue REF S23.7 image" width="280">
     </td>
   </tr>
 </table>
@@ -147,7 +151,6 @@ All 500 HDF5 files were checked for the expected zea container structure, 12 ord
 ## Known Issues
 
 - The transmit setup is an unfocused plane wave by design: steering angle is zero, no finite focus distance is used (`infinite focus`), transmit delays are zero, and apodization is unity for every transmit element. These are intentional simulation settings rather than missing calibration fields.
-- RF amplitude and several custom-element units remain source-defined and should be confirmed against the simulator documentation.
 - The HDF5 files store only the official nominal bandwidth endpoints (1.0–4.0 MHz). The measured transfer-function −6 dB bounds (approximately 1.52–3.70 MHz) and corresponding 83.4% fractional bandwidth are documented in this README but are not stored as HDF5 data fields.
 - The simulator is a private, unpublished derivative of the cited simulator; no public software package or Git commit is required to use the released RF data. The internal dataset-generation release label is recorded in the HDF5 metadata and should be used when referring to this generation run.
 - No train/validation/test split is provided.
@@ -161,4 +164,15 @@ The dataset is synthetic, so participant consent, de-identification, and IRB app
 
 When using the dataset, cite:
 
-R. Zorgdrager et al., “Waveform-Specific Performance of Deep Learning-Based Super-Resolution for Ultrasound Contrast Imaging,” *IEEE Transactions on Ultrasonics, Ferroelectrics, and Frequency Control*, 2025. [doi:10.1109/TUFFC.2025.3537298](https://doi.org/10.1109/TUFFC.2025.3537298)
+```bibtex
+@ARTICLE{10858770,
+  author={Zorgdrager, Rienk and Blanken, Nathan and Wolterink, Jelmer M. and Versluis, Michel and Lajoinie, Guillaume},
+  journal={IEEE Transactions on Ultrasonics, Ferroelectrics, and Frequency Control}, 
+  title={Waveform-Specific Performance of Deep Learning-Based Super-Resolution for Ultrasound Contrast Imaging}, 
+  year={2025},
+  volume={72},
+  number={4},
+  pages={427-439},
+  keywords={Imaging;Ultrasonic imaging;Transducers;Chirp;RF signals;Superresolution;Signal to noise ratio;Signal resolution;Frequency control;Acoustics;Chirp;deep learning;flow imaging;microbubbles;super-resolution;ultrasound contrast imaging},
+  doi={10.1109/TUFFC.2025.3537298}}
+```
