@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Example reconstruction script for the waterloo-femoralvein dataset of OpenH-RF.
+"""Example reconstruction script for the waterloo-largeartery dataset of OpenH-RF.
 
 Dataset link: https://huggingface.co/datasets/nvidia/OpenH-RF/tree/main/waterloo-largeartery
 
@@ -56,21 +56,21 @@ DYNAMIC_RANGE = [-50, 0]  # dB; written to pipeline.yaml, tweak it there
 # zea process reproduces the same field of view.
 PARAMETERS = {
     "xlims": [-0.019, 0.019],
-    "zlims": [0.010, 0.060],
+    "zlims": [0.010, 0.045],  # RF runs out at 48.5 mm; signal ends ~41.8 mm
     "grid_size_x": 381,
-    "grid_size_z": 501,
+    "grid_size_z": 451,
     "dynamic_range": DYNAMIC_RANGE,
 }
 
 # --- Inputs -----------------------------------------------------------------
 # Defaults stream straight from the published corpus. Swap any of these for a
 # local path to run against your own copy.
-ZEA_FILE = "hf://nvidia/OpenH-RF/waterloo-largeartery/data/Acq0.hdf5"
+ZEA_FILE = "hf://nvidia/OpenH-RF/waterloo-largeartery/data/Acq5.hdf5"
 CONFIG = HERE / "pipeline.yaml"
 OUT = HERE / "assets" / "reconstruct_output.png"
 HF_CONFIG = "hf://nvidia/OpenH-RF/waterloo-largeartery/pipeline.yaml"
-FRAME = 5200
-POWER_THRESHOLD = 58.0  # Power Doppler mask threshold (dB); covers the vein lumen
+FRAME = 100
+POWER_THRESHOLD = 50.0  # Power Doppler mask threshold (dB); covers the vein lumen
 VMAX = 1.0  # Velocity color-scale max (m/s) for the quiver overlay; None -> 99th pct
 NO_DEALIAS = False  # Use the raw (aliased) velocity fields even when dealiased ones exist
 

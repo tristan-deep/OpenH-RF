@@ -1,5 +1,5 @@
 ---
-name: waterloo-femoralvein
+name: waterloo-largeartery
 pretty_name: UW-FemVeinRF
 license: cc-by-4.0
 task_categories:
@@ -23,9 +23,9 @@ size_categories:
 
 # UW-FemVein RF
 
-![Vector flow cineloop from Acq0.hdf5](assets/Acq0.gif)
+![Reconstructed cineloop from Acq5.hdf5](assets/Acq5.gif)
 
-*Cine loop of [`data/Acq0.hdf5`](https://huggingface.co/datasets/nvidia/OpenH-RF/blob/main/waterloo-largeartery/data/Acq0.hdf5), rendered from provided velocity fields.*
+*Cine loop of [`data/Acq5.hdf5`](https://huggingface.co/datasets/nvidia/OpenH-RF/blob/main/waterloo-largeartery/data/Acq5.hdf5), reconstructed from the raw channel data with the `pipeline.yaml` in this folder.*
 
 ## Dataset Description
 
@@ -67,13 +67,13 @@ The acquisitions can be processed with the `pipeline.yaml` definition in this fo
 
 ```bash
 zea process \
-  --dataset hf://nvidia/OpenH-RF/waterloo-largeartery/data/Acq0.hdf5 \
+  --dataset hf://nvidia/OpenH-RF/waterloo-largeartery/data/Acq5.hdf5 \
   --config hf://nvidia/OpenH-RF/waterloo-largeartery/pipeline.yaml \
   --n-frames 1 \
   --save-as png
 ```
 
-Alternatively, you can use the `reconstruct.py` [script](https://github.com/open-h/OpenH-RF/blob/main/datasets/waterloo-femoralvein/reconstruct.py) as provided in the [OpenH-RF GitHub repository](https://github.com/open-h/OpenH-RF).
+Alternatively, you can use the `reconstruct.py` [script](https://github.com/open-h/OpenH-RF/blob/main/datasets/waterloo-largeartery/reconstruct.py) as provided in the [OpenH-RF GitHub repository](https://github.com/open-h/OpenH-RF).
 
 Swap `--n-frames 1 --save-as png` for `--save-as gif` to get the cine loop. In the script, `ZEA_FILE`, `FRAME`, `POWER_THRESHOLD` (the power-Doppler mask threshold, in dB), `VMAX` (velocity colour-scale maximum) and `NO_DEALIAS` at the top select what is reconstructed and overlaid.
 
@@ -110,14 +110,23 @@ Per-sample contents of the converted HDF5:
 
 All `coordinates` arrays are per-pixel Cartesian positions in meters, last axis `[x, y, z]` (y = 0 for 2-D maps).
 
+## Shipped Example Acquisitions
 
+One example acquisition is included under `hdf5/` as a representative subset of the full dataset:
 
+| File | Subject | Anatomy | View | Condition | Frames |
+|---|---|---|---|---|---|
+| `hdf5/Acq0.hdf5` | 1 | Femoral Vein | Longitudinal | Contraction 8Kg HUT 40 | 9000-12000 |
+
+Each femoral vein acquisition comprises 2 steered plane-wave transmits (`n_tx = 2`), 2048/3072 axial samples, and 192 receive channels. Note that example provided was convrted with start-frame=9000 to get to the interesting part.
+
+The frame count in these examples is truncated for demonstration; full acquisitions contain the frame counts described below.
 
 ## Dataset Quantification
 
 **Current OpenH-RF release:** 15 HDF5 files; 941.96 GB (941,958,804,227 bytes) stored; root `zea_version` **0.1.5**. Sizes include all HDF5 contents and use decimal units (MB = 10^6 bytes, GB = 10^9 bytes, TB = 10^12 bytes), not decoded-array memory or original-source download sizes.
 
-Data was collected from 15 participants and consists of 15 acquisitions (one per participant), containing 12,000 frames of raw RF data per acquisition. Each participant performed isometric plantarflexion contractions at 8 Kg under head up tilt of 40 degrees. Each femoral vein acquisition comprises 2 steered plane-wave transmits (`n_tx = 2`), 2048/3072 axial samples, and 192 receive channels. 
+Data was collected from 15 participants and consists of 15 acquisitions (one per participant), containing 12,000 frames of raw RF data per acquisition. Each participant performed isometric plantarflexion contractions at 8 Kg under head up tilt of 40 degrees.
 
 ## Subject Metadata
 
@@ -145,9 +154,9 @@ Data was collected from 15 participants and consists of 15 acquisitions (one per
    - **Reconstruction Grid:** Cartesian coordinates mapped by a `PixelMap` representing a lateral range of $[-19, 19]\text{ mm}$ and axial depth of $[10, 60]\text{ mm}$ at $0.1\text{ mm}$ spatial resolution.
 3. **Clutter Filtering:** Clutter filtering is performed on the beamformed ensemble using a high-pass wall filter (normalized cut-off frequencies of 0.05 and 0.1, attenuation of 100 dB).
 4. **Multi-Angle Doppler Frequency Estimation:** Angle-specific Doppler frequencies are computed using an ensemble size of 64 frames with a step size of 1.
-   - For conventional vector velocity estimation, we used the following Tx-Rx angles: Tx: [-10°, -10°, 10°, 10°]; Rx: [-10°, 10°, -10°, 10°]
-   - For dealiased vector velocity estimation, we used the following Tx-Rx angles: Tx: [-10°, -10°, -10°,-10°, 10°, 10°]; Rx: [-10°, -3°, 6°, 10°, -6°, 3°,10°]
-   - Color Doppler map is selected as the first of these (Tx: -10°, Rx = -10°)
+   - For conventional vector velocity estimation, we used the following Tx-Rx angles: Tx: [-10, -10, 10, 10]; Rx: [-10, 10, -10, 10]
+   - For dealiased vector velocity estimation, we used the following Tx-Rx angles: Tx: [-10, -10, -10,-10, 10, 10]; Rx: [-10, -3, 6, 10, -6, 3,10]
+   - Color Doppler map is selected as the first of these (Tx: -10, Rx = -10)
 5. **Vector Doppler Velocity Estimation:** Lateral ($v_x$) and axial ($v_z$) velocity components are computed from the multi-angle Doppler frequency estimates using GPU-accelerated least-squares estimation. Lateral ($v_x$) and axial ($v_z$) dealiased velocity components are computed from the multi-angle Doppler frequency estimates using GPU-accelerated extended least-squares estimation.
 
 The full LITMUS processing pipeline (GPU DAS beamforming + multi-angle vector Doppler) is documented by the contributors. That documentation is provided for provenance and reproducibility; it depends on the LITMUS core Python package and the raw acquisition frames, so it is not runnable from this folder alone.
@@ -164,7 +173,7 @@ B. Y. S. Yiu and A. C. H. Yu, "Least-Squares Multi-Angle Doppler Estimators for 
 
 `reconstruct.py` builds a `zea.Pipeline` of DAS beamforming → envelope detection → normalization → log-compression **in code** and reconstructs a B-mode directly from `raw_data`, showing the raw-to-image flow without any config file. It also saves the pipeline to `pipeline.yaml` as a shareable recipe. Comparing the reconstruction against the stored (LITMUS) B-mode is a sanity check that the acquisition parameters and probe geometry are recorded correctly, and serves as a reproducible reference reconstruction.
 
-When the vector-flow fields (`vector_velocity_x/z`/`vector_velocity_x/z_deal` + `power_doppler`) are present, the vector velocity field is overlayed on the stored B-mode. The overlay uses `draw_velocity_field`, a single self-contained (numpy + matplotlib) helper reproduced inside `reconstruct.py` from the LITMUS core Python package (`litmus.core_py.visualization`), so the script has no dependency on the full LITMUS GPU stack.
+When the vector-flow fields (`vector_velocity_x/z`/`vector_velocity_x/z_deal` + `power_doppler`) are present, a third panel overlays the vector velocity field on the stored B-mode. The overlay uses `draw_velocity_field`, a single self-contained (numpy + matplotlib) helper reproduced inside `reconstruct.py` from the LITMUS core Python package (`litmus.core_py.visualization`), so the script has no dependency on the full LITMUS GPU stack.
 
 The result is written to `reconstruct_output.png`:
 
