@@ -49,7 +49,7 @@ PARAMETERS = {
 # Defaults stream straight from the published corpus. Swap any of these for a
 # local path to run against your own copy.
 ZEA_FILE = "hf://nvidia/OpenH-RF/weillcornell/data/ac10_15m_SK.hdf5"
-OUT = HERE / "assets" / "ac1_15m_SK_pipeline.png"
+OUT = HERE / "assets" / "ac10_15m_SK_pipeline.png"
 HF_CONFIG = "hf://nvidia/OpenH-RF/weillcornell/pipeline.yaml"
 FRAME = 0  # Frame index to reconstruct
 DEVICE = None  # Optional zea device, e.g. cpu, cuda:0, auto:0
