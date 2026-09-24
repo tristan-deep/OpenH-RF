@@ -1,3 +1,8 @@
+parameters:
+  t_peak: [5.688e-06] # DPT beamforming timing reference in s (custom track_0_t_peak)
+  xlims: [-0.014, 0.014] # 28 mm
+  dynamic_range: [-30, 0]
+
 pipeline:
   operations:
     - name: demodulate
