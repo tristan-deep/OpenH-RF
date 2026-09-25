@@ -83,7 +83,7 @@ Suitable for research in:
 - **Labeling Method:** No manual labels; ground-truth flow rate is implicit in camera images. Note that the measured velocity may differ from the pump output in Table 1 due to changes in geometry and flow profiles in the flow chamber.
 - **Acquisition system:**
   - Transducer: GEC1-6D curved array, 192 elements, 3.4 MHz center frequency, 95% bandwidth, 35 µm element width, 66 mm elevation focus, 0.0568 m radius
-  - Transmit: single plane-wave (focus distance = 0, polar angle = 0°)
+  - Transmit: diverging wave (no transmit delays, so the diverging nature is induced by the curvature of the surface)
   - Sampling rate: ~19.2 MHz
   - Sound speed used: 1509.6 m/s (water-based phantom)
   - Data type: raw RF (n_ch = 1, float32)
@@ -101,6 +101,8 @@ The acquisitions can be processed with the `reconstruct.py` [script](https://git
 
 All files are in the **zea** format (HDF5 + zea schema, current release `zea_version` 0.1.6). Each `.hdf5` file contains two tracks:
 
+**Table 2. Track labels.**
+
 | Track label             | Description                                         |
 |-------------------------|-----------------------------------------------------|
 | `short imaging pulse`   | Standard narrow-band pulse transmit                 |
@@ -113,6 +115,8 @@ No pre-processing (demodulation, decimation, filtering) has been applied before 
 ## Dataset Quantification
 
 **Current OpenH-RF release:** 6 HDF5 files; 9.09 GB (9,088,991,232 bytes) stored; root `zea_version` **0.1.6**. Sizes include all HDF5 contents and use decimal units (MB = 10^6 bytes, GB = 10^9 bytes, TB = 10^12 bytes), not decoded-array memory or original-source download sizes.
+
+**Table 3. Acquisition settings.**
 
 | File                                    | Pump V | TX V | Frames per track | Tracks | Stored HDF5 size |
 |-----------------------------------------|--------|------|--------|--------|-----------------|
@@ -127,6 +131,8 @@ No pre-processing (demodulation, decimation, filtering) has been applied before 
 - **Stored HDF5 size:** 9.09 GB (9,088,991,232 bytes). **No train/validation/test split** is defined; all acquisitions are provided as-is.
 
 ### Per-sample feature table
+
+**Table 4. Per-sample features.**
 
 | Name                  | Shape (per frame)     | Dtype   | Units | Description                                           |
 |-----------------------|-----------------------|---------|-------|-------------------------------------------------------|

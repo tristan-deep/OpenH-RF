@@ -1,15 +1,10 @@
-parameters:
-    xlims: [-0.08, 0.08]   # matches reconstruct.py
-    zlims: [0.05, 0.10]
-    grid_size_x: 1600
-    grid_size_z: 700
 pipeline:
     operations:
     -   name: keras.ops.cast
         params:
             dtype: float32
     - demodulate
-    -   name: beamform
+    - beamform
     - envelope_detect
     -   name: normalize
         params:
@@ -17,3 +12,15 @@ pipeline:
             - 0.0
             - 1.0
     - log_compress
+parameters:
+    xlims:
+    - -0.08
+    - 0.08
+    zlims:
+    - 0.05
+    - 0.1
+    grid_size_x: 1536
+    grid_size_z: 480
+    dynamic_range:
+    - -50
+    - 0
