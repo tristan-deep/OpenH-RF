@@ -9,7 +9,7 @@ authors = [
     { name = "OpenH-RF Contributors" },
 ]
 dependencies = [
-    "zea==0.1.6",
+    "zea==0.1.7",
     "numpy",
     "huggingface_hub",
     "datasets",
