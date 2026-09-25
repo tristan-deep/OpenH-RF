@@ -22,6 +22,11 @@ size_categories:
 
 # ULMShare — in vivo mouse transcranial ULM
 
+<img width="100%" align="center" src="assets/hero.gif"
+  alt="Ultrasound localization microscopy of the mouse brain."/>
+
+*Ultrasound localization microscopy (ULM) super-resolution reconstruction of a mouse brain from the ULMShare dataset.*
+
 ## Dataset Description
 
 Pre-beamformed, plane-wave **IQ channel data** from transcranial ultrasound localization microscopy (ULM) of the mouse brain, converted from the public [ULMShare](https://arxiv.org/abs/2606.07851) release into the zea format. Each acquisition is a contrast-enhanced (microbubble) plane-wave sequence over the intact skull of an anesthetized mouse; compounding the transmits gives a Power-Doppler movie of the cerebral microvasculature, and localizing and tracking individual microbubbles across frames gives a super-resolved density map of the vessels.
