@@ -59,7 +59,9 @@ The affiliations include the University of North Carolina at Chapel Hill, Johns 
 
 ## License / Terms of Use
 
-[Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/legalcode.en). Retain attribution and identify modifications when reusing the data.
+[Creative Commons Attribution 4.0 International (CC BY 4.0)](https://creativecommons.org/licenses/by/4.0/legalcode.en). Retain attribution and identify modifications when reusing the data. 
+
+The original license was [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/). The conversion of the license is under agreement of all the contributors.
 
 ## Intended Usage
 
