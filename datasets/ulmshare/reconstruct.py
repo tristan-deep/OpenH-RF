@@ -256,7 +256,9 @@ def reconstruct(zea_path, pipeline, frame_index=0):
 
 def beamform_stack(zea_path, pipeline, n_frames=None, batch_size=BATCH_SIZE):
     """Beamform every frame into an IQ movie ``(n_frames, Nz, Nx, 2)``."""
-    with zea.File(str(zea_path)) as f:
+    # progress=False: zea would otherwise draw a streaming bar for every batch
+    # read; the frame bar below covers it.
+    with zea.File(str(zea_path), progress=False) as f:
         source = _raw_source(f)
         parameters = _apply_ulmshare_grid(source.load_parameters())
         total = source.data.raw_data.shape[0]
