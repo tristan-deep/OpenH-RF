@@ -161,8 +161,9 @@ Aggregate only; the subjects are mice, so no PHI applies. Subject attributes are
 - Standard B-mode and B-mode with tissue suppression `zea` pipelines available in `pipeline_bmode.yaml` and `pipeline_tissue_suppression.yaml`, respectively.
 
 ## Known Issues
-
-- N/A
+- The metadata of mice 55 56 and 57 should not mark them as air puff. Only mice 58, and 59 acq 1 and 3 have should be marked air puff.
+- The metadata should include a `brain` anatomy label.
+- `zea` version for the files is not up-to-date.
 
 ## Ethical Considerations
 
