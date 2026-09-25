@@ -1,3 +1,8 @@
+parameters:
+  t_peak: [8.348e-06] # LDC beamforming timing reference in s (custom track_4_t_peak)
+  xlims: [-0.014, 0.014] # 28 mm
+  dynamic_range: [-30, 0]
+
 pipeline:
   operations:
     - name: demodulate

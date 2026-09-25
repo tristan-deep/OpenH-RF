@@ -5,6 +5,12 @@ Dataset link: https://huggingface.co/datasets/nvidia/OpenH-RF/tree/main/twente-m
 
 B-mode reconstruction of simulated plane-wave microbubble channel data.
 
+Each file holds one track per transmit pulse (REF, DPT, L1.7, ...), and each
+track has its own pipeline in ``pipeline/``; ``PULSE`` picks one. The
+pipeline's ``parameters.t_peak`` is that pulse's beamforming timing reference,
+copied from the file's ``track_<i>_t_peak`` custom element (identical in every
+file). The simulated bubble positions are drawn on top as ground truth.
+
 Requires zea>=0.1.6 (https://github.com/tue-bmd/zea), the library that does the
 ultrasound processing here, together with one of its Keras backends (JAX,
 PyTorch or TensorFlow). Installation instructions are at
@@ -19,108 +25,79 @@ import os
 os.environ.setdefault("KERAS_BACKEND", "jax")
 os.environ.setdefault("MPLBACKEND", "Agg")
 
-
 from pathlib import Path
 
-# backend library so CUDA devices are not visible during device discovery.
-os.environ["CUDA_VISIBLE_DEVICES"] = ""
-
+import keras
+import matplotlib.pyplot as plt
 import zea
-from utils import (
-    bubble_coordinates_cm,
-    image_extent_cm,
-    plot_bmode,
-    run_bmode,
-)
+from zea import Config, File, Pipeline
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(__file__).parent
 
-PULSE_NAMES = (
-    "DPT",
-    "L1.7",
-    "L2.5",
-    "L3.4",
-    "LDC",
-    "LUC",
-    "REF",
-    "S1.7",
-    "S2.5",
-    "S3.4",
-    "SDC",
-    "SUC",
-)
-PULSE_TO_TRACK = {pulse: index for index, pulse in enumerate(PULSE_NAMES)}
+PULSE_NAMES = ("DPT", "L1.7", "L2.5", "L3.4", "LDC", "LUC")
+PULSE_NAMES += ("REF", "S1.7", "S2.5", "S3.4", "SDC", "SUC")
 
 # --- Inputs -----------------------------------------------------------------
 # Defaults stream straight from the published corpus. Swap any of these for a
 # local path to run against your own copy.
-PATH = "hf://nvidia/OpenH-RF/twente-microbubblesim/data/Monodispers/RFDATA00002.hdf5"
-# Pipeline YAML to load; otherwise the selected track's saved pipeline
-CONFIG_PATH = "hf://nvidia/OpenH-RF/twente-microbubblesim/pipeline/pipeline_track_0_DPT.yaml"
-PULSE = "DPT"  # Pulse label to reconstruct, for example REF, DPT, or L1.7
-# (must match the track in CONFIG_PATH; track 0 is DPT)
-OUT = None  # Output PNG filename; otherwise uses population and pulse names
-DYNAMIC_RANGE = (-30.0, 0.0)  # Display dynamic range in dB
-SHOW_BUBBLES = True  # Draw the red bubble ground-truth overlay
+PULSE = "REF"  # transmit pulse to reconstruct; one of PULSE_NAMES
+TRACK = PULSE_NAMES.index(PULSE)
+ZEA_FILE = "hf://nvidia/OpenH-RF/twente-microbubblesim/data/Monodispers/RFDATA00002.hdf5"
+CONFIG = HERE / "pipeline" / f"pipeline_track_{TRACK}_{PULSE}.yaml"
+FRAME = 0
+OUT = HERE / "assets" / f"{Path(ZEA_FILE).parent.name}_{PULSE}.png"
+HF_CONFIG = f"hf://nvidia/OpenH-RF/twente-microbubblesim/pipeline/{CONFIG.name}"
 
 
-def population_name(path: Path) -> str:
-    """Return the population name encoded in a dataset path."""
+def main():
+    zea.init_device()
+    config = Config.from_path(str(CONFIG))
 
-    parts = [part.lower() for part in path.parts]
-    if any("sonovue" in part for part in parts):
-        return "SonoVue"
-    if any("monodispers" in part for part in parts):
-        return "Monodispers"
-    return "OpenH-RF"
+    with File(ZEA_FILE) as f:
+        track = f.tracks[TRACK]
+        parameters = track.load_parameters(**config.parameters)
+        raw = track.data.raw_data[FRAME : FRAME + 1, parameters.selected_transmits]
+        depth = float(f.custom["domain_depth"].data)
+        bubble_x = f.custom["bubble_x"].data
+        bubble_z = f.custom["bubble_z"].data
 
+    pipeline = Pipeline.from_config(config)
+    outputs = pipeline(data=raw, **pipeline.prepare_parameters(parameters))
+    bmode = keras.ops.convert_to_numpy(outputs[pipeline.output_key])[0]
+    image = zea.display.to_8bit(bmode, dynamic_range=parameters.dynamic_range)
 
-def default_config_path(pulse: str) -> Path:
-    """Return the saved pipeline for the selected pulse track."""
-
-    track_index = PULSE_TO_TRACK[pulse]
-    return HERE / "pipeline" / f"pipeline_track_{track_index}_{pulse}.yaml"
-
-
-def default_output_path(path: Path, pulse: str) -> Path:
-    population = population_name(path)
-    return HERE / "assets" / f"{population}_{pulse}.png"
-
-
-def main() -> None:
-    zea.init_device("cpu")
+    # Plot in cm; the depth axis runs to the simulated domain depth.
+    x_min, x_max = (x * 100 for x in config.parameters.xlims)
+    z_max = depth * 100
     zea.visualize.set_mpl_style()
-
-    config_path = str(CONFIG_PATH) if CONFIG_PATH is not None else default_config_path(PULSE)
-    input_path = str(PATH)
-    if not input_path.lower().endswith(".hdf5"):
-        raise ValueError("PATH must point directly to a .hdf5 acquisition file")
-    track_index = PULSE_TO_TRACK[PULSE]
-    output_path = Path(OUT) if OUT else default_output_path(Path(input_path), pulse=PULSE)
-
-    file, parameters, image, custom = run_bmode(
-        input_path,
-        config_path,
-        track_index=track_index,
-        dynamic_range=tuple(DYNAMIC_RANGE),
-        xlims_cm=(-1.4, 1.4),
+    fig, ax = plt.subplots(figsize=(5, 12), constrained_layout=True)
+    ax.imshow(
+        image,
+        cmap="gray",
+        aspect="auto",
+        extent=(x_min, x_max, z_max, 0),
+        interpolation="nearest",
+        vmin=0,
+        vmax=255,
     )
-    try:
-        extent_cm = image_extent_cm(parameters, custom, image.shape, xlims_cm=(-1.4, 1.4))
-        bubble_x_cm, bubble_z_cm = bubble_coordinates_cm(custom)
-        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
-        plot_bmode(
-            image,
-            extent_cm,
-            output_path,
-            bubble_x_cm=bubble_x_cm,
-            bubble_z_cm=bubble_z_cm,
-            show_bubbles=SHOW_BUBBLES,
-            title=(f"{population_name(Path(input_path))} — {PULSE} — {Path(input_path).stem}"),
-        )
-    finally:
-        file.close()
-    print("Successfully saved image to", output_path)
+    ax.scatter(
+        bubble_x * 100,
+        bubble_z * 100,
+        facecolors="none",
+        edgecolors="red",
+        linewidths=0.8,
+        s=28,
+        label="Bubble ground truth",
+    )
+    ax.legend(loc="upper right")
+    ax.set_xlabel("Lateral position x [cm]")
+    ax.set_ylabel("Depth z [cm]")
+    ax.set_title(f"{Path(ZEA_FILE).parent.name} — {PULSE} — {Path(ZEA_FILE).stem}")
+    ax.set_xlim(x_min, x_max)
+    ax.set_ylim(z_max, 0)
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(OUT, dpi=150)
+    print(f"raw {raw.shape} -> B-mode {bmode.shape}; saved {OUT}")
 
 
 if __name__ == "__main__":
