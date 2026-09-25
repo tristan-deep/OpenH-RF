@@ -11,6 +11,14 @@ movie behind the power-Doppler output and the ULM density map (see :mod:`ulm`).
 Everything is written into OUT_DIR: ``bmode.png``, ``power_doppler.png``,
 ``power_doppler_movie.gif`` and ``ulm_density.png``.
 
+Only a fraction of the acquisition is used. By default the Power-Doppler and
+ULM outputs are built from the first ``N_FRAMES`` = 4 buffers (1600 frames) of
+an acquisition of ~76000 frames (~178 GB), streamed from the Hub. That's enough
+to check that the pipeline works, but the ULM density map will be much sparser
+than the one in the ULMShare paper. To reproduce the paper, download an
+acquisition to local disk, point ``ZEA_FILE`` at it and set ``N_FRAMES = None``
+to use all of its frames.
+
 Requires zea>=0.1.6 (https://github.com/tue-bmd/zea), the library that does the
 ultrasound processing here, together with one of its Keras backends (JAX,
 PyTorch or TensorFlow). Installation instructions are at
@@ -27,9 +35,15 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 
 from pathlib import Path
 
+import keras
+import matplotlib.pyplot as plt
 import numpy as np
 import zea
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from scipy.ndimage import gaussian_filter
+from tqdm import tqdm
 from ulm import reconstruct_ulm
+from zea.io_lib import matplotlib_figure_to_numpy, save_to_gif
 from zea.ops import (
     Beamform,
     Cast,
@@ -61,6 +75,10 @@ FNUMBER = 1.4
 DYNAMIC_RANGE_DB = 50.0  # B-mode display floor
 PD_RANGE_DB = 40.0  # Power-Doppler display range
 MOVIE_FPS = 10
+# Every movie frame is rendered and held in memory before the GIF is written, so
+# a full acquisition (~76000 frames) would exhaust RAM and give an unwatchable
+# GIF. Longer stacks keep only their first MOVIE_MAX_FRAMES frames.
+MOVIE_MAX_FRAMES = 4 * 400
 BATCH_SIZE = 8  # frames beamformed per pipeline call
 CLUTTER_FILTER_CUT = 5 / 100  # SVD cutoff as a fraction of frames (process.m)
 T_PEAK = 0.0  # MUST adds no pulse-peak offset; zea's default images too deep
@@ -92,7 +110,8 @@ OUT_DIR = Path(__file__).parent  # Directory for all outputs (default: next to t
 FRAME = 0  # B-mode frame index (default: 0)
 # An acquisition is ~178 GB / 76000 frames; `None` means all of them, which is
 # only sensible on local disk. Four buffers is what the ULM parameters above
-# were tuned against.
+# were tuned against. See the module docstring: this is a small fraction, so the
+# ULM map won't match the paper's.
 N_FRAMES = 4 * FRAMES_PER_BUFFER  # frames used for Power-Doppler and ULM
 
 
@@ -174,13 +193,15 @@ def _raw_source(zea_file):
     reference summary image. Both layouts are handled so either converter's
     output can be reconstructed.
     """
-    tracks = getattr(zea_file, "tracks", None)
-    if not tracks or len(tracks) == 1:
+    # ``track_labels`` rather than ``tracks``: the latter also computes transmit
+    # timestamps, warning on every open since these files carry no
+    # ``time_to_next_transmit``.
+    labels = zea_file.track_labels
+    if len(labels) <= 1:
         return zea_file
-    for track in tracks:
-        if track.label == "raw":
-            return track
-    raise ValueError(f"No 'raw' track in {zea_file}; found {[t.label for t in tracks]}.")
+    if "raw" not in labels:
+        raise ValueError(f"No 'raw' track in {zea_file}; found {labels}.")
+    return zea_file.tracks[labels.index("raw")]
 
 
 def _apply_ulmshare_grid(parameters):
@@ -199,9 +220,29 @@ def _apply_ulmshare_grid(parameters):
     return parameters
 
 
+def count_frames(zea_path):
+    """Number of frames in the raw-data track of ``zea_path``."""
+    with zea.File(str(zea_path)) as f:
+        return _raw_source(f).data.raw_data.shape[0]
+
+
+def log_settings(n_total, n_used):
+    """Log a short summary of the input and how much of it is used."""
+    zea.log.info("ulmshare reconstruction settings:")
+    zea.log.info(f"  input:        {ZEA_FILE}")
+    zea.log.info(f"  output dir:   {zea.log.yellow(OUT_DIR)}")
+    zea.log.info(f"  B-mode frame: {FRAME}")
+    pct = 100 * n_used / n_total
+    zea.log.info(f"  PD/ULM:       {n_used}/{n_total} frames ({pct:.1f}% of the acquisition)")
+    if n_used < n_total:
+        zea.log.warning(
+            "Using only part of the acquisition: the ULM map will be much sparser than in "
+            "the ULMShare paper. Set N_FRAMES = None (on a local copy) to use all frames."
+        )
+
+
 def reconstruct(zea_path, pipeline, frame_index=0):
     """Reconstruct one B-mode frame (2D dB image), normalised to 0 dB max."""
-    zea.init_device(verbose=False)
     with zea.File(str(zea_path)) as f:
         source = _raw_source(f)
         parameters = source.load_parameters()
@@ -215,7 +256,6 @@ def reconstruct(zea_path, pipeline, frame_index=0):
 
 def beamform_stack(zea_path, pipeline, n_frames=None, batch_size=BATCH_SIZE):
     """Beamform every frame into an IQ movie ``(n_frames, Nz, Nx, 2)``."""
-    zea.init_device(verbose=False)
     with zea.File(str(zea_path)) as f:
         source = _raw_source(f)
         parameters = _apply_ulmshare_grid(source.load_parameters())
@@ -224,11 +264,12 @@ def beamform_stack(zea_path, pipeline, n_frames=None, batch_size=BATCH_SIZE):
         inputs = pipeline.prepare_parameters(parameters)
 
         frames = []
-        for start in range(0, total, batch_size):
-            raw = source.data.raw_data[start : min(start + batch_size, total)]
-            out = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
-            frames.append(np.asarray(out[pipeline.output_key]))
-            print(f"  beamformed {min(start + batch_size, total)}/{total} frames")
+        with tqdm(total=total, desc="beamforming", unit="frame") as progbar:
+            for start in range(0, total, batch_size):
+                raw = source.data.raw_data[start : min(start + batch_size, total)]
+                out = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
+                frames.append(np.asarray(out[pipeline.output_key]))
+                progbar.update(raw.shape[0])
 
     return np.concatenate(frames, axis=0)
 
@@ -240,8 +281,6 @@ def tissue_suppress(iq_bf, op):
     convention directly, so ``(n_frames, Nz, Nx, 2)`` needs no rearranging.
     Returns the complex movie ``(n_frames, Nz, Nx)``.
     """
-    import keras
-
     filtered = op(data=keras.ops.convert_to_tensor(iq_bf))["data"]
     return keras.ops.convert_to_numpy(keras.ops.view_as_complex(filtered))
 
@@ -263,7 +302,7 @@ def clutter_filter(iq_bf, op, frames_per_buffer=FRAMES_PER_BUFFER):
         chunk = iq_bf[start : min(start + step, total)]
         op.cutoff = matlab_clutter_cutoff(chunk.shape[0])
         out.append(tissue_suppress(chunk, op))
-        print(f"  buffer {i}: {chunk.shape[0]} frames, rejected {op.cutoff} components")
+        zea.log.info(f"  buffer {i}: {chunk.shape[0]} frames, rejected {op.cutoff} components")
     return out
 
 
@@ -273,21 +312,20 @@ def power_doppler(iq_cf):
     return pd - pd.max()
 
 
-def power_doppler_movie(iq_cf):
-    """Per-frame Power-Doppler movie in dB.
+def power_doppler_movie(iq_cf, max_frames=MOVIE_MAX_FRAMES, chunk=1000):
+    """Per-frame Power-Doppler movie in dB, of at most ``max_frames`` frames.
 
     As ``powerDopplerMovie`` in the MATLAB: offset by the max over the *whole*
-    movie, not per frame, so brightness stays comparable across frames.
+    stack, not per frame, so brightness stays comparable across frames. The peak
+    is found chunk by chunk so a long stack is never converted to dB in full.
     """
-    movie = 20 * np.log10(np.abs(iq_cf) + 1e-12)
-    return movie - movie.max()
+    peak = max(np.abs(iq_cf[i : i + chunk]).max() for i in range(0, iq_cf.shape[0], chunk))
+    movie = 20 * np.log10(np.abs(iq_cf[:max_frames]) + 1e-12)
+    return movie - 20 * np.log10(peak + 1e-12)
 
 
 def save_image(image, out_path, title, label, cmap, vmin=None, vmax=None, ticks=None):
     """Render one 2D map on the reconstruction grid to a PNG."""
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-
     zea.visualize.set_mpl_style()
     fig, ax = plt.subplots(figsize=(4, 6))
     im = ax.imshow(image, cmap=cmap, vmin=vmin, vmax=vmax, extent=EXTENT_MM, aspect="equal")
@@ -299,15 +337,11 @@ def save_image(image, out_path, title, label, cmap, vmin=None, vmax=None, ticks=
     fig.colorbar(im, cax=cax, label=label, ticks=ticks)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"Saved {title} to {out_path}")
+    zea.log.success(f"Saved {title} to {zea.log.yellow(out_path)}")
 
 
 def save_movie_gif(movie, out_path, vmin, vmax, cmap="viridis", fps=MOVIE_FPS):
     """Render a ``(n_frames, Nz, Nx)`` dB movie to an animated GIF."""
-    import matplotlib.pyplot as plt
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
-    from zea.io_lib import matplotlib_figure_to_numpy, save_to_gif
-
     fig, ax = plt.subplots(figsize=(4, 6))
     im = ax.imshow(movie[0], cmap=cmap, vmin=vmin, vmax=vmax, extent=EXTENT_MM, aspect="equal")
     ax.set_xlabel("x (mm)")
@@ -316,14 +350,13 @@ def save_movie_gif(movie, out_path, vmin, vmax, cmap="viridis", fps=MOVIE_FPS):
     fig.colorbar(im, cax=cax, label="dB", ticks=[vmin, vmax])
 
     frames = []
-    for k in range(movie.shape[0]):
+    for k in tqdm(range(movie.shape[0]), desc="rendering movie frames"):
         im.set_data(movie[k])
         ax.set_title(f"Power Doppler (dB) — frame {k}")
         frames.append(matplotlib_figure_to_numpy(fig))
     plt.close(fig)
 
-    save_to_gif(np.stack(frames), out_path, fps=fps)
-    print(f"Saved Power-Doppler movie ({len(frames)} frames, {fps} fps) to {out_path}")
+    save_to_gif(np.stack(frames), out_path, fps=fps)  # logs the saved path itself
 
 
 def render_ulm(density, out_path, super_res=ULM_SUPER_RES):
@@ -334,8 +367,6 @@ def render_ulm(density, out_path, super_res=ULM_SUPER_RES):
     mostly-zero background does not collapse the scale. Sigma is specified in BF
     pixels so the look is stable as ``super_res`` changes.
     """
-    from scipy.ndimage import gaussian_filter
-
     disp = gaussian_filter(density, sigma=0.1 * super_res) ** 0.5
     nonzero = disp[disp > 0]
     save_image(
@@ -352,6 +383,11 @@ def render_ulm(density, out_path, super_res=ULM_SUPER_RES):
 def main():
     out_dir = OUT_DIR
     out_dir.mkdir(parents=True, exist_ok=True)
+    zea.init_device(verbose=False)
+
+    n_total = count_frames(ZEA_FILE)
+    n_used = n_total if N_FRAMES is None else min(N_FRAMES, n_total)
+    log_settings(n_total, n_used)
     bmode_yaml = out_dir / "pipeline_bmode.yaml"
     ts_yaml = out_dir / "pipeline_tissue_suppression.yaml"
 
@@ -361,12 +397,14 @@ def main():
     build_tissue_suppression_pipeline().to_yaml(str(ts_yaml))
     pipeline = load_pipeline(bmode_yaml)
     ts_pipeline = load_pipeline(ts_yaml)
-    print(f"Saved pipelines to {bmode_yaml} and {ts_yaml}")
+    zea.log.success(
+        f"Saved pipelines to {zea.log.yellow(bmode_yaml)} and {zea.log.yellow(ts_yaml)}"
+    )
 
     # ---- B-mode ------------------------------------------------------------ #
-    print(f"Reconstructing frame {FRAME} from {ZEA_FILE} ...")
+    zea.log.info(f"Reconstructing B-mode frame {FRAME} ...")
     bmode = reconstruct(ZEA_FILE, pipeline, frame_index=FRAME)
-    print(f"  B-mode {bmode.shape} dB range [{bmode.min():.1f}, {bmode.max():.1f}]")
+    zea.log.info(f"  B-mode {bmode.shape} dB range [{bmode.min():.1f}, {bmode.max():.1f}]")
     save_image(
         bmode,
         out_dir / "bmode.png",
@@ -383,10 +421,10 @@ def main():
     # Cast -> Beamform head runs per frame, the op itself over each buffer.
     bf_head, ts_op = split_pipeline(ts_pipeline, TissueSuppression)
 
-    print("Beamforming frame stack ...")
-    iq_bf = beamform_stack(ZEA_FILE, bf_head, n_frames=N_FRAMES)
+    zea.log.info(f"Beamforming {n_used} frames ...")
+    iq_bf = beamform_stack(ZEA_FILE, bf_head, n_frames=n_used)
 
-    print("SVD clutter filtering ...")
+    zea.log.info("SVD clutter filtering ...")
     iq_cf = np.concatenate(clutter_filter(iq_bf, ts_op), axis=0)
 
     save_image(
@@ -399,15 +437,22 @@ def main():
         vmax=0,
         ticks=[-PD_RANGE_DB, 0],
     )
+    n_movie = min(iq_cf.shape[0], MOVIE_MAX_FRAMES)
+    if n_movie < iq_cf.shape[0]:
+        zea.log.warning(
+            f"Power-Doppler movie limited to the first {n_movie}/{iq_cf.shape[0]} frames "
+            "(MOVIE_MAX_FRAMES)."
+        )
+    zea.log.info(f"Rendering Power-Doppler movie ({n_movie} frames); this takes a few minutes ...")
     save_movie_gif(
-        power_doppler_movie(iq_cf),
+        power_doppler_movie(iq_cf, max_frames=n_movie),
         out_dir / "power_doppler_movie.gif",
         vmin=-PD_RANGE_DB,
         vmax=0,
     )
 
     # ---- ULM (localize -> track -> density map) ---------------------------- #
-    print("Running ULM ...")
+    zea.log.info(f"Running ULM on {iq_cf.shape[0]} frames ...")
     density, _ = reconstruct_ulm(
         iq_cf,
         threshold_snr=ULM_THRESHOLD_SNR,
