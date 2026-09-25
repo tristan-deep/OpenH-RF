@@ -29,16 +29,20 @@ Usage:
 """
 
 import os
+from contextlib import contextmanager
 
 os.environ.setdefault("KERAS_BACKEND", "jax")
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 from pathlib import Path
 
+import h5py
+import hdf5plugin  # noqa: F401  (registers the Blosc filter the raw data is compressed with)
 import keras
 import matplotlib.pyplot as plt
 import numpy as np
 import zea
+from huggingface_hub import HfFileSystem
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.ndimage import gaussian_filter
 from tqdm import tqdm
@@ -80,6 +84,11 @@ MOVIE_FPS = 10
 # GIF. Longer stacks keep only their first MOVIE_MAX_FRAMES frames.
 MOVIE_MAX_FRAMES = 4 * 400
 BATCH_SIZE = 8  # frames beamformed per pipeline call
+# Streaming: raw_data is chunked one frame per chunk, and zea 0.1.6 sends one HTTP
+# request per chunk -- ~76000 for a full acquisition, which trips the Hugging Face
+# rate limit. beamform_stack instead reads through a block cache that fetches up to
+# this many bytes per request (fewer when fewer frames are used).
+STREAM_BLOCK_BYTES = 64 * 2**20
 CLUTTER_FILTER_CUT = 5 / 100  # SVD cutoff as a fraction of frames (process.m)
 T_PEAK = 0.0  # MUST adds no pulse-peak offset; zea's default images too deep
 # ULMShare records 400-frame buffers, concatenated by convert_acquisition. The
@@ -254,24 +263,58 @@ def reconstruct(zea_path, pipeline, frame_index=0):
     return bmode - bmode.max()
 
 
+@contextmanager
+def open_raw_data(zea_path, dataset_name, n_bytes, max_block=STREAM_BLOCK_BYTES):
+    """Open the ``raw_data`` h5py dataset of ``zea_path`` for a read of ~``n_bytes``.
+
+    A local file is opened directly. An ``hf://`` file is opened through an LRU
+    block cache, so consecutive frame chunks arrive in a few large requests rather
+    than one request each. Blocks are ~1/16 of ``n_bytes``: HDF5's own metadata
+    reads (superblock, chunk index) each cost one block too, and small blocks keep
+    that overhead small, so a short run fetches little more than the frames it uses.
+    """
+    zea_path = str(zea_path)
+    if not zea_path.startswith("hf://"):
+        with h5py.File(zea_path, "r") as f:
+            yield f[dataset_name]
+        return
+
+    block = int(np.clip(n_bytes // 16, 2**18, max_block))
+    fobj = HfFileSystem().open(
+        "datasets/" + zea_path.removeprefix("hf://"),
+        "rb",
+        block_size=block,
+        cache_type="blockcache",
+        cache_options={"maxblocks": 8},
+    )
+    with fobj, h5py.File(fobj, "r") as f:
+        yield f[dataset_name]
+
+
 def beamform_stack(zea_path, pipeline, n_frames=None, batch_size=BATCH_SIZE):
     """Beamform every frame into an IQ movie ``(n_frames, Nz, Nx, 2)``."""
-    # progress=False: zea would otherwise draw a streaming bar for every batch
-    # read; the frame bar below covers it.
-    with zea.File(str(zea_path), progress=False) as f:
+    with zea.File(str(zea_path)) as f:
         source = _raw_source(f)
         parameters = _apply_ulmshare_grid(source.load_parameters())
-        total = source.data.raw_data.shape[0]
-        total = total if n_frames is None else min(n_frames, total)
-        inputs = pipeline.prepare_parameters(parameters)
+        raw_data = source.data.raw_data
+        dataset_name = raw_data.name
+        total = raw_data.shape[0]
+        # An uncompressed frame chunk: an upper bound on what one stored frame takes.
+        frame_bytes = int(np.prod(raw_data.chunks)) * raw_data.dtype.itemsize
+    total = total if n_frames is None else min(n_frames, total)
+    inputs = pipeline.prepare_parameters(parameters)
+    verb = "streaming" if str(zea_path).startswith("hf://") else "reading"
 
-        frames = []
-        with tqdm(total=total, desc="beamforming", unit="frame") as progbar:
-            for start in range(0, total, batch_size):
-                raw = source.data.raw_data[start : min(start + batch_size, total)]
-                out = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
-                frames.append(np.asarray(out[pipeline.output_key]))
-                progbar.update(raw.shape[0])
+    frames = []
+    with (
+        open_raw_data(zea_path, dataset_name, total * frame_bytes) as raw_data,
+        tqdm(total=total, desc=f"{verb} + beamforming", unit="frame") as progbar,
+    ):
+        for start in range(0, total, batch_size):
+            raw = raw_data[start : min(start + batch_size, total)]
+            out = pipeline(**{pipeline.key: raw}, **inputs, return_numpy=True)
+            frames.append(np.asarray(out[pipeline.output_key]))
+            progbar.update(raw.shape[0])
 
     return np.concatenate(frames, axis=0)
 
@@ -423,7 +466,8 @@ def main():
     # Cast -> Beamform head runs per frame, the op itself over each buffer.
     bf_head, ts_op = split_pipeline(ts_pipeline, TissueSuppression)
 
-    zea.log.info(f"Beamforming {n_used} frames ...")
+    source = "streaming from the Hub" if ZEA_FILE.startswith("hf://") else "reading from disk"
+    zea.log.info(f"Beamforming {n_used} frames ({source}) ...")
     iq_bf = beamform_stack(ZEA_FILE, bf_head, n_frames=n_used)
 
     zea.log.info("SVD clutter filtering ...")
