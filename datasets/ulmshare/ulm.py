@@ -78,15 +78,17 @@ def localize_frame(frame, threshold, min_distance=1):
     #   offset = 0.5 * (a - c) / (a - 2b + c), clamped to [-0.5, 0.5].
     logmag = np.log(mag + 1e-12)
 
-    def _sub_offset(up, mid, down):
-        denom = up - 2.0 * mid + down
-        off = np.where(np.abs(denom) > 1e-12, 0.5 * (up - down) / denom, 0.0)
-        return np.clip(off, -0.5, 0.5)
-
     dz = _sub_offset(logmag[zs - 1, xs], logmag[zs, xs], logmag[zs + 1, xs])
     dx = _sub_offset(logmag[zs, xs - 1], logmag[zs, xs], logmag[zs, xs + 1])
 
     return np.stack([zs + dz, xs + dx], axis=1)
+
+
+def _sub_offset(up, mid, down):
+    """3-point parabolic peak offset from samples ``up``/``mid``/``down``, clamped to +-0.5."""
+    denom = up - 2.0 * mid + down
+    off = np.where(np.abs(denom) > 1e-12, 0.5 * (up - down) / denom, 0.0)
+    return np.clip(off, -0.5, 0.5)
 
 
 def localize_movie(iq_cf, threshold_snr=2.0, min_distance=1):
@@ -113,8 +115,35 @@ def localize_movie(iq_cf, threshold_snr=2.0, min_distance=1):
         list[np.ndarray]: Per-frame ``(n_bubbles, 2)`` arrays of ``(z, x)``
             sub-pixel positions.
     """
-    threshold = threshold_snr * float(np.median(np.abs(iq_cf)))
-    return [localize_frame(frame, threshold, min_distance=min_distance) for frame in iq_cf]
+    mag = np.abs(iq_cf)
+    threshold = threshold_snr * float(np.median(mag))
+    return _localize_stack(mag, threshold, min_distance=min_distance)
+
+
+def _localize_stack(mag, threshold, min_distance=1):
+    """:func:`localize_frame` over a whole ``(n_frames, Nz, Nx)`` magnitude stack at once.
+
+    One ``maximum_filter`` over the stack (size 1 along the frame axis, so frames
+    stay independent) and one vectorised sub-pixel fit replace a Python loop over
+    frames; the result is identical, frame by frame, to :func:`localize_frame`.
+    """
+    size = 2 * min_distance + 1
+    is_peak = (mag == maximum_filter(mag, size=(1, size, size))) & (mag > threshold)
+    is_peak[:, 0, :] = is_peak[:, -1, :] = is_peak[:, :, 0] = is_peak[:, :, -1] = False
+
+    fs, zs, xs = np.nonzero(is_peak)  # sorted by frame
+    # Log-magnitude only where the fit needs it, not over the whole stack.
+
+    def logmag(dz, dx):
+        return np.log(mag[fs, zs + dz, xs + dx] + 1e-12)
+
+    mid = logmag(0, 0)
+    dz = _sub_offset(logmag(-1, 0), mid, logmag(1, 0))
+    dx = _sub_offset(logmag(0, -1), mid, logmag(0, 1))
+
+    pts = np.stack([zs + dz, xs + dx], axis=1)
+    bounds = np.searchsorted(fs, np.arange(1, mag.shape[0]))
+    return np.split(pts, bounds)
 
 
 def track(
